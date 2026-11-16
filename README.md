@@ -20,16 +20,36 @@ Shorts Studio takes any long YouTube video, Kick livestream VOD, or saved video 
 
 ---
 
-## 🗺️ How It Works (Simple Visual Map)
+## 🗺️ How It Works (Visual Flowchart)
+
+![Shorts Studio Visual Flowchart](assets/architecture_flowchart.png)
+
+<details>
+<summary>View interactive color-coded Mermaid diagram</summary>
 
 ```mermaid
-flowchart LR
-    A["1. Add Video (YouTube, Kick, or File)"] --> B["2. Download Small Audio Track"]
-    B --> C["3. AI Listens & Finds Best Moments"]
-    C --> D["4. Grab HD Clips of ONLY Those Parts"]
-    D --> E["5. Crop to Vertical 9:16 + Add Captions"]
-    E --> F["6. Ready! Download or Upload to YouTube"]
+flowchart TD
+    IN1["1. Add Video (YouTube, Kick, or Local File)"]:::blue --> IN2["2. Campaign Rules (Optional: @tag, watermark, 45s cap)"]:::blue
+    IN2 --> DL["3. Grab Small Audio Track (yt-dlp audio ~90% smaller)"]:::peach
+    DL --> WAV["4. Find Voice Peaks (16kHz audio loudness map)"]:::peach
+    WAV --> TX["5. Speech to Text (Groq Whisper v3 or Local)"]:::green
+    TX --> RSI1["6. AI Picks Best Moments (Scores hooks & clarity)"]:::green
+    MEM["AI Style Memory"]:::blue --> RSI1
+    RSI1 --> SLICE["7. Fetch HD Video Slices (ONLY winning clips)"]:::peach
+    SLICE --> CV["8. Smart 9:16 Framing (OpenCV face & game detection)"]:::peach
+    CV --> RSI2["9. AI Critic Tightens Cuts (Trims weak openers)"]:::green
+    RSI2 --> REN["10. Captions & Render (FFmpeg 1080x1920 karaoke MP4)"]:::peach
+    REN --> OUT(["11. Shorts Ready + Tags (Auto-cleans temp files)"]):::coral
+    OUT --> PUB(["12. Upload & Track CPM (YouTube Data API v3)"]):::coral
+    OUT --> FB["Your Thumbs Up / Down"]:::blue --> MEM
+
+    classDef blue fill:#cfe2ff,stroke:#6c8cff,color:#0b0e14,stroke-width:1.5px;
+    classDef peach fill:#fdebd0,stroke:#f5b041,color:#0b0e14,stroke-width:1.5px;
+    classDef green fill:#d1f2eb,stroke:#2dd4bf,color:#0b0e14,stroke-width:1.5px;
+    classDef coral fill:#fadbd8,stroke:#f87171,color:#0b0e14,stroke-width:1.5px;
 ```
+
+</details>
 
 ### What happens behind the scenes in plain English:
 1. **Saves ~90% download time:** Instead of downloading a huge 10 GB full-HD livestream just to look through it, the app grabs a tiny audio track first.
