@@ -8,101 +8,81 @@ app_port: 7860
 pinned: false
 ---
 
-# Shorts Studio — Architecture Map & Builder's Guide
+# 🎬 Shorts Studio — Turn Long Videos into Viral Shorts (Free & Open Source)
 
-An open, modular pipeline for turning long-form videos or livestreams (YouTube, Kick VODs, or local recordings) into vertical `1080×1920` Shorts with word-synced captions, optional creator overlays, and automated publishing.
+**No monthly subscriptions. No watermarks. Runs right on your computer.**
 
-This README serves as a **general blueprint & map**: it explains how the stages connect, what alternative approaches you can swap in at each layer, and how to add new steps or integrations.
+Shorts Studio takes any long YouTube video, Kick livestream VOD, or saved video file, automatically finds the best funny/exciting moments, crops them into vertical `1080×1920` clips with animated word-by-word captions, and lets you post them to **YouTube Shorts** in 1 click.
+
+![Shorts Studio Animated Demo](assets/demo_preview.gif)
+
+▶️ **[Watch the Full 720p Demo Video with Sound (`assets/demo.mp4`)](assets/demo.mp4)**
 
 ---
 
-## 1. System Map (End-to-End Flow)
+## 🗺️ How It Works (Simple Visual Map)
 
 ```mermaid
-flowchart TD
-    IN["1. Input Source (URL / File Upload / Local Path)"] --> OPT["Optional Campaign Rules (@tag, watermark, max length)"]
-    OPT --> DL["2. Media Ingest (yt-dlp audio-first m4a / 160p HLS or full video)"]
-    DL --> AUDIO["3. Audio Analysis (16kHz WAV, RMS energy peaks, silence gaps)"]
-    AUDIO --> TX["4. Transcription (Cloud Whisper or Local Whisper)"]
-
-    TX --> STAGE1["5a. Moment Selection (AI + Audio/Transcript Scoring)"]
-    MEM["Evolving Strategy Memory (JSON weights & rules)"] --> STAGE1
-
-    STAGE1 --> SLICE["5b. Selective HD Fetch (yt-dlp --download-sections around candidates)"]
-    SLICE --> CV["5c. Visual Analysis (OpenCV face tracking, UI edge density, scene cuts)"]
-    CV --> STAGE2["5d. Multi-Round Critic & Refinement (Hooks & cut boundaries)"]
-
-    STAGE2 --> PREC["6a. Precision Subtitle Pass (RMS dip-split bursts + LLM cleanup)"]
-    PREC --> RENDER["6b. Vertical Renderer (FFmpeg 1080x1920 + ASS karaoke + watermark)"]
-    RENDER --> CLEAN["6c. Temp Cleanup (Deletes work/ scratch files)"]
-
-    CLEAN --> READY(["7. Ready Deliverables (MP4s + Post Pack Title/Caption/Tags)"])
-    READY --> PUB["8. Publishing Path (YouTube API / Browser Automation / Manual)"]
-    PUB --> TRACK(["Optional Campaign & CPM Tracker"])
-    READY --> FB["Human Thumbs Up/Down Feedback"] --> MEM
+flowchart LR
+    A["1. Add Video (YouTube, Kick, or File)"] --> B["2. Download Small Audio Track"]
+    B --> C["3. AI Listens & Finds Best Moments"]
+    C --> D["4. Grab HD Clips of ONLY Those Parts"]
+    D --> E["5. Crop to Vertical 9:16 + Add Captions"]
+    E --> F["6. Ready! Download or Upload to YouTube"]
 ```
 
----
-
-## 2. Step-by-Step Breakdown
-
-1. **Input & Optional Campaign Preset** (`app/main.py`, `app/campaigns.py`)
-   - Accepts a remote video/VOD URL, browser file upload, or local path, plus optional formatting constraints (maximum duration cap, `@tag`, hashtags, top-right watermark).
-2. **Media Ingest & Audio Profiling** (`app/transcriber.py`, `app/analyzer.py`)
-   - In **audio-first mode**, fetches only metadata + a lightweight audio stream (falling back to lowest muxed bitrate on HLS VODs) to avoid downloading multi-gigabyte 1080p streams upfront.
-   - Extracts `16kHz` mono PCM audio and computes 0.5-second RMS energy and silence gaps.
-3. **Speech Transcription** (`app/transcriber.py`)
-   - Splits long streams into high-energy windows across the timeline and transcribes with word-level timestamps.
-4. **2-Stage Selection, Visual Scan & Critique** (`app/rsi_engine.py`, `app/analyzer.py`)
-   - **Stage 1** picks top candidate clip windows from transcript + audio peaks.
-   - Only those short windows (+padding) are fetched in `1080p` via `yt-dlp --download-sections` and scanned with OpenCV (face centers, UI/screen-share edge density, scene cuts).
-   - **Stage 2** scores 6 criteria (`hook_strength`, `boundary_cleanliness`, `pacing_energy`, `visual_framing`, `standalone_clarity`, `duration_fit`), refines cut boundaries, chooses the best vertical crop, and applies learned preferences.
-5. **Precision Subtitles & Rendering** (`app/transcriber.py`, `app/renderer.py`)
-   - Splits each chosen clip at quiet RMS dips (~7.5s bursts), transcribes accurately, optionally normalizes spelling/Romanization with an LLM, and burns `1080×1920` H.264 MP4s with `.ass` karaoke subtitles, hook banner, and optional watermark.
-6. **Publishing & Tracking** (`app/uploader.py`, `app/campaigns.py`)
-   - Outputs MP4 files + copy-ready titles/captions/tags, supports optional automated YouTube Shorts uploading via OAuth 2.0 resumable uploads, and tracks submitted URLs + view counts.
+### What happens behind the scenes in plain English:
+1. **Saves ~90% download time:** Instead of downloading a huge 10 GB full-HD livestream just to look through it, the app grabs a tiny audio track first.
+2. **Finds the best parts automatically:** AI reads the speech, checks where voices get loud/excited, and picks the strongest 20–45 second moments.
+3. **Downloads HD video ONLY for those winning clips:** It fetches just those short pieces in crisp `1080p`, saving time and hard-drive space.
+4. **Crops & adds bold captions:** OpenCV checks whether someone's face is talking (zooms cleanly on them) or if it's a game/screen share (keeps the full game clear with a blurred background), then burns in karaoke-style captions.
+5. **Uploads & cleans up:** Deletes temporary files automatically and lets you upload to YouTube Shorts or copy ready-made titles and hashtags.
 
 ---
 
-## 3. Alternative Approaches You Can Swap In
+## 📸 Screenshots
 
-Every stage is decoupled so you can choose the trade-off that fits your hardware, budget, and workflow:
+### Main Studio Screen (Paste Link → Get Vertical Shorts)
+![Main Studio Desktop UI](assets/desktop_studio.png)
 
-| Pipeline Stage | Built-In Approach | Alternative Approaches & Trade-Offs |
+### Real Outputs (Auto-Framed 9:16 + Word-Synced Captions)
+![Rendered Vertical Shorts Showcase](assets/shorts_showcase.png)
+
+### Built-In Bounties & CPM Tracker (Track Creator Campaigns & Views)
+![Bounties and CPM Tracker](assets/bounties_ui.png)
+
+---
+
+## 🔀 Different Ways You Can Run or Customize It
+
+You do **not** have to use just one tool for everything. Each step can be swapped depending on what you care about most:
+
+| Step | Default Way (Built In) | Other Options You Can Choose |
 | :--- | :--- | :--- |
-| **Video Ingest** | Audio-first + partial `1080p` slices (`yt-dlp`) | **Full video download** (simpler, works offline for multi-pass visual scanning, uses more disk/bandwidth) · **Local watch folder / RSS poll** (triggers automatically on new recordings or uploads) |
-| **Transcription** | Cloud Whisper API (`0%` local CPU/GPU) | **Local `faster-whisper` / `mlx-whisper`** (100% offline/private, higher local CPU/RAM use) · **Platform captions (`json3`/SRT)** (instant, lower timing precision) |
-| **Highlight Scoring & Hooks** | Cloud or Local LLM (Groq / Ollama / Gemini / OpenAI) | **Pure heuristic signal scoring** (`$0`, offline, uses audio spikes + sentence boundaries + OpenCV cuts when no LLM key is configured) |
-| **Vertical Framing** | OpenCV face-track, blurred-fit, split-screen, center crop | **Active speaker diarization / pose tracking** · **Custom template overlays** (channel banners, rounded webcam boxes) |
-| **Captions** | Dip-split Whisper + LLM normalization + FFmpeg `.ass` | **Raw unburned `.srt`/`.ass` sidecars** (lets you style captions inside external editors like CapCut/Premiere) |
-| **Publishing** | Direct **YouTube Data API v3** (`$0`, up to 100 uploads/day via your own OAuth client) | **Browser UI Automation** (Playwright with a persistent logged-in browser profile — avoids Cloud Console, works across YouTube/TikTok/IG, slower & sensitive to UI changes) · **Third-party scheduling APIs** (paid, single API for YouTube + TikTok + Reels) · **Manual review-first export** (download + copy-paste) |
-| **Deployment** | Localhost macOS/Linux (`127.0.0.1:8765`) or LAN (`HOST=0.0.0.0`) | **Docker / Hugging Face Spaces** (`Dockerfile` included) · **Serverless / Webhook queue** (e.g., Telegram/Slack trigger -> review sheet -> scheduled publish) |
+| **1. Getting the Video** | **Smart Audio-First** (downloads tiny audio first, then short HD clips) | **Download Full Video** (good if your internet is fast and you want the whole file saved) · **Upload / Local File** (use your own `.mp4` recordings) |
+| **2. Turning Speech into Text** | **Groq Cloud Whisper (`$0` Free Key)** — runs in seconds with `0%` strain on your laptop | **100% Offline Whisper** (`faster-whisper` / `mlx-whisper` — works with no internet, uses your laptop CPU/GPU) |
+| **3. Picking Best Moments** | **AI + Audio Scoring** (Groq, Ollama, Gemini, or OpenAI) | **No-AI Mode** (`$0` offline scoring using loudness spikes + sentence pauses — no API keys needed) |
+| **4. Cropping Video** | **Auto** (picks between full-screen game fit and speaker face-zoom) | **Blurred Background**, **Face Tracking**, **Split Screen** (game top + face bottom), or **Simple Center Crop** |
+| **5. Posting to YouTube** | **1-Click / Auto Upload** via Google's free **YouTube Data API v3** (up to 100 uploads/day) | **Manual Download** (save MP4 + copy captions into YouTube/TikTok/Instagram) · **Browser Automation** (Playwright clicking `studio.youtube.com` if you don't want Google Cloud setup) · **Paid Multi-App Schedulers** (for auto-posting to TikTok + IG Reels too) |
 
 ---
 
-## 4. How to Add New Steps or Custom Modules
+## 🚀 5-Minute Setup Guide (Step by Step)
 
-Because each responsibility lives in its own module under `app/`, adding a new capability follows a clean pattern:
+### What You Need Installed First
+- **Python 3.10+**
+- **FFmpeg** & **yt-dlp**
+  - On Mac (using Homebrew):
+    ```bash
+    brew install ffmpeg yt-dlp
+    ```
 
-| If You Want To Add... | Where To Hook It In |
-| :--- | :--- |
-| **A new video source or pre-processing filter** (e.g., Twitch/RSS watcher, watermark remover, intro/outro stitcher) | Add helper functions in `app/transcriber.py` or `app/renderer.py`, then call them inside `_process_job()` in `app/main.py`. |
-| **A new transcription backend or language rule** | Extend `transcribe_audio()` / `transcribe_clip_precision()` in `app/transcriber.py` and expose the option in `static/index.html`. |
-| **Custom scoring criteria or layout modes** | Add scoring dimensions/rules in `app/rsi_engine.py`, add visual heuristics in `app/analyzer.py`, and implement the FFmpeg `filter_complex` branch in `render_short_clip()` (`app/renderer.py`). |
-| **Another upload destination** (e.g., webhook, Telegram/Discord post, S3 bucket, Playwright browser uploader, or scheduler API) | Create a module alongside `app/uploader.py` (or add a provider function there), trigger it via an endpoint like `POST /api/clips/{job_id}/{clip_id}/upload-*` and/or post-render inside `_process_job()` in `app/main.py`. |
-| **Human-in-the-loop review gates** | Store pending state in job JSON (`data/jobs/`) or an external table (Airtable/Notion/Postgres), pause before publishing, and trigger upload only after approval. |
-
----
-
-## 5. Local Quick Start
-
-### Prerequisites
-- Python 3.10+
-- `ffmpeg` and `yt-dlp` on your `PATH` (e.g., `brew install ffmpeg yt-dlp` on macOS)
-
-### Setup & Run
+### Install & Start the App
+Open Terminal and run these commands one by one:
 
 ```bash
+git clone https://github.com/Theankitmishra/yt-shorts.git
+cd yt-shorts
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -110,33 +90,60 @@ cp .env.example .env
 ./run.sh
 ```
 
-Open **http://127.0.0.1:8765** (or run `HOST=0.0.0.0 ./run.sh` to open from a phone on the same Wi-Fi).
+Now open **http://127.0.0.1:8765** in your web browser.
 
-### Optional Cloud Keys & OAuth
-- **Groq API Key (`GROQ_API_KEY`)**: Set in `.env` or inside **Setup & Storage** in the web UI for fast zero-CPU cloud transcription and LLM refinement.
-- **YouTube Data API v3 (`client_secret.json`)**: In Google Cloud Console, enable *YouTube Data API v3*, create an OAuth *Web application* client with redirect URI `http://127.0.0.1:8765/api/youtube/callback`, add your test Gmail under **Audience → Test users**, and connect via **Setup & Storage**.
+> **Want to open it on your phone (same Wi-Fi)?**
+> Start it with `HOST=0.0.0.0 ./run.sh` and open `http://<your-computer-ip>:8765` on your phone browser.
 
 ---
 
-## 6. Project Structure
+## 🔑 Optional Free Upgrades (Recommended)
+
+### 1. Make AI & Captions Instant (Free Groq API Key)
+1. Sign up free at **[console.groq.com](https://console.groq.com/)** and copy an API key.
+2. Open the app → go to **⚙️ Setup & Storage** → paste your Groq key → click **Save Settings**.
+   *(Now transcription and moment picking run in the cloud for free without heating up your laptop!)*
+
+### 2. Enable 1-Click YouTube Shorts Upload (Free Google Setup)
+1. Open **[Google Cloud Console](https://console.cloud.google.com/)** and create a free project.
+2. Enable **YouTube Data API v3**.
+3. Go to **Google Auth Platform → Audience → Test users** and add **your Gmail address** *(important so Google doesn't block sign-in with Error 403)*.
+4. Create an **OAuth Client ID** (*Web application*) with Redirect URI:
+   `http://127.0.0.1:8765/api/youtube/callback`
+5. Download the JSON, paste it into **⚙️ Setup & Storage**, click **1. Save OAuth Client**, then **2. Connect YouTube Channel**.
+
+---
+
+## 📁 Where Each File Lives (Simple Code Map)
+
+Want to tweak how something works or add your own feature? Look here:
 
 ```text
-app/
-  main.py         # FastAPI server, background job pipeline & API routes
-  transcriber.py  # yt-dlp ingest, audio extraction & Whisper transcription
-  analyzer.py     # RMS audio energy & OpenCV face/screen analysis
-  rsi_engine.py   # 2-stage clip selection, critique & strategy memory
-  renderer.py     # FFmpeg 1080x1920 vertical rendering & ASS subtitles
-  campaigns.py    # Campaign presets, compliance checks & earnings tracking
-  uploader.py     # OAuth 2.0 + chunked YouTube Data API v3 resumable uploader
-  config.py       # Storage directories, settings & cookie/key management
-static/
-  index.html      # Desktop & mobile responsive UI
-tests/
-  test_rsi_pipeline.py
+yt-shorts/
+├── app/
+│   ├── main.py         👈 Starts the website & runs every step in order
+│   ├── transcriber.py  👈 Downloads YouTube/Kick links & turns speech into text
+│   ├── analyzer.py     👈 Measures loudness peaks & scans faces with OpenCV
+│   ├── rsi_engine.py   👈 AI picks best moments & learns from your 👍 / 👎 feedback
+│   ├── renderer.py     👈 Cuts 1080×1920 vertical videos & burns karaoke captions
+│   ├── uploader.py     👈 Connects to YouTube & uploads finished Shorts
+│   ├── campaigns.py    👈 Saves bounty presets, hashtags & calculates CPM payouts
+│   └── config.py       👈 Handles folders, settings & saved keys
+├── static/
+│   └── index.html      👈 The entire Desktop + Mobile web dashboard
+├── tests/
+│   └── test_rsi_pipeline.py 👈 Automated checks to make sure rendering works
+└── run.sh              👈 Starts the app in 1 command
 ```
 
-## 7. Running Tests
+### How to Add Your Own Step or Idea
+- **Want to add TikTok / Discord / Telegram posting?** Add a new helper inside `app/uploader.py` (or a new file next to it) and call it at the end of `_process_job()` in `app/main.py`.
+- **Want a custom caption color, font, or video layout?** Edit `generate_ass_subtitles()` or `render_short_clip()` inside `app/renderer.py`.
+- **Want different moment-picking rules?** Update the scoring rubric or prompt inside `app/rsi_engine.py`.
+
+---
+
+## 🧪 Run Built-In Checks
 
 ```bash
 python -m tests.test_rsi_pipeline
