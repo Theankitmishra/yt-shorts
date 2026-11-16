@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0b0e14" />
+  <title>Shorts Studio — Clip, Caption &amp; Upload</title>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --surface: #131822;
+      --surface-2: #1a2130;
+      --surface-3: #212a3d;
+      --border: #283247;
+      --text: #eef2f9;
+      --muted: #9aa8bf;
+      --accent: #6c8cff;
+      --accent-hover: #839eff;
+      --accent-2: #2dd4bf;
+      --warn: #fbbf24;
+      --danger: #f87171;
+      --ok: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 22px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(19, 24, 34, 0.94);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; flex-wrap: wrap; }
+    .badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(45, 212, 191, 0.13);
+      color: var(--accent-2);
+      border: 1px solid rgba(45, 212, 191, 0.35);
+      font-weight: 600;
+      cursor: default;
+    }
+    .badge.clickable { cursor: pointer; }
+    .badge.warn {
+      background: rgba(251, 191, 36, 0.14);
+      color: var(--warn);
+      border-color: rgba(251, 191, 36, 0.35);
+    }
+    .badge.ok {
+      background: rgba(52, 211, 153, 0.14);
+      color: var(--ok);
+      border-color: rgba(52, 211, 153, 0.35);
+    }
+    html, body { max-width: 100%; overflow-x: clip; }
+    .layout {
+      display: grid;
+      grid-template-columns: 390px 1fr;
+      gap: 20px;
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 20px;
+      align-items: start;
+    }
+    .layout > * { min-width: 0; max-width: 100%; }
+    .mobile-nav { display: none; }
+    code, pre, a { overflow-wrap: anywhere; word-break: break-word; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .subcard {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+    h2, h3 { margin: 0 0 10px; font-size: 15px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; margin-top: 10px; font-weight: 500; }
+    input[type="text"], input[type="password"], input[type="number"], select, textarea {
+      width: 100%;
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 9px 11px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+    .tab-btn {
+      flex: 1;
+      padding: 8px 11px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text); border-color: #3a4866; }
+    .tab-btn.active {
+      background: rgba(108, 140, 255, 0.2);
+      color: var(--text);
+      border-color: var(--accent);
+    }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 14px;
+      border-radius: 9px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      text-decoration: none;
+      transition: transform 0.08s ease, background 0.15s ease, opacity 0.15s ease;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #081020; width: 100%; margin-top: 14px; padding: 11px 16px; font-size: 14px; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-ghost { background: var(--surface-2); color: var(--text); border-color: var(--border); padding: 6px 11px; font-size: 12px; }
+    .btn-ghost:hover { background: var(--surface-3); }
+    .btn-ok { background: rgba(52, 211, 153, 0.16); color: var(--ok); border-color: rgba(52, 211, 153, 0.4); padding: 6px 11px; font-size: 12px; }
+    .btn-bad { background: rgba(248, 113, 113, 0.16); color: var(--danger); border-color: rgba(248, 113, 113, 0.4); padding: 6px 11px; font-size: 12px; }
+    .progress-box {
+      margin-top: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 12px;
+    }
+    .progress-track {
+      height: 7px;
+      background: #0c1018;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 0.35s ease;
+    }
+    .logs {
+      margin-top: 8px;
+      background: #07090e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      max-height: 190px;
+      overflow-y: auto;
+      color: #a7b6cc;
+      white-space: pre-wrap;
+    }
+    .clips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(305px, 1fr));
+      gap: 16px;
+    }
+    .clip-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    video.short-player {
+      width: 100%;
+      aspect-ratio: 9 / 16;
+      max-height: 430px;
+      background: #000;
+      border-radius: 10px;
+      object-fit: contain;
+    }
+    .score-pill {
+      font-weight: 700;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(52, 211, 153, 0.14);
+      color: var(--ok);
+      border: 1px solid rgba(52, 211, 153, 0.4);
+    }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+    }
+    .rubric-bar { font-size: 11px; }
+    .rubric-bar .track { height: 5px; background: #0e131d; border-radius: 4px; overflow: hidden; margin-top: 3px; }
+    .rubric-bar .fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+    .trace-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .mutation-item { font-size: 12px; color: var(--accent-2); margin: 3px 0; }
+    .weakness-item { font-size: 12px; color: var(--warn); margin: 3px 0; }
+    .hidden { display: none !important; }
+    .drop-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.015);
+    }
+    .small { font-size: 12px; color: var(--muted); }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .rule-pill {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      border-radius: 9px;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .empty-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+      text-align: left;
+    }
+    .step-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #1d2638;
+      color: var(--text);
+      border: 1px solid var(--accent-2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+      z-index: 99;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+      transition: all 0.2s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    details.box {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-2);
+    }
+    details.box > summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      list-style: none;
+    }
+    details.box > summary::-webkit-details-marker { display: none; }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; padding: 12px; gap: 14px; }
+    }
+    @media (max-width: 640px) {
+      body { padding-bottom: calc(78px + env(safe-area-inset-bottom)); }
+      header { position: static; padding: 10px 14px; }
+      .brand { font-size: 16px; gap: 6px; }
+      .badge { font-size: 10px; padding: 3px 8px; }
+      .header-actions { width: 100%; }
+      #recentJobs { width: 100% !important; min-height: 44px; }
+      .card { padding: 14px; border-radius: 12px; }
+      main .tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+      }
+      main .tabs::-webkit-scrollbar { display: none; }
+      main .tabs .tab-btn { flex: 0 0 auto; min-height: 42px; padding: 8px 13px; }
+      aside .tabs .tab-btn { min-height: 42px; padding: 8px 8px; font-size: 12px; }
+      .btn { min-height: 44px; }
+      .btn-ghost, .btn-ok, .btn-bad { min-height: 40px; }
+      .clips-grid { grid-template-columns: 1fr; gap: 14px; }
+      .clip-card { min-width: 0; max-width: 100%; }
+      video.short-player { max-height: 68vh; }
+      input[type="text"], input[type="password"], input[type="number"], select, textarea { font-size: 16px; min-height: 44px; }
+      textarea { min-height: 76px; }
+      .row-2 { gap: 8px; }
+      .toast {
+        left: 14px;
+        right: 14px;
+        bottom: calc(80px + env(safe-area-inset-bottom));
+        text-align: center;
+      }
+      .mobile-nav {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 50;
+        background: rgba(19, 24, 34, 0.96);
+        backdrop-filter: blur(12px);
+        border-top: 1px solid var(--border);
+        padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+        gap: 4px;
+      }
+      .mobile-nav-btn {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 6px 4px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        min-height: 46px;
+      }
+      .mobile-nav-btn.active {
+        color: var(--text);
+        background: rgba(108, 140, 255, 0.16);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span>🎬 Shorts Studio</span>
+      <span id="healthBadge" class="badge">Checking system...</span>
+      <span id="storageBadge" class="badge clickable" onclick="openTab('storage')">Storage: checking...</span>
+      <span id="ytHeaderBadge" class="badge warn clickable" onclick="openTab('storage')">YouTube: Not connected</span>
+    </div>
+    <div class="header-actions" style="display:flex; gap:8px; align-items:center;">
+      <select id="recentJobs" style="width:280px;" onchange="loadSelectedJob(this.value)">
+        <option value="">Switch past project...</option>
+      </select>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- Left Sidebar: Simple 2-Step Clipper -->
+    <aside id="createSection" class="card">
+      <h2>1. Choose Your Video</h2>
+      <div class="tabs">
+        <button id="btn-tab-youtube" class="tab-btn active" onclick="setSourceTab('youtube', this)">YouTube / Kick URL</button>
+        <button id="btn-tab-file" class="tab-btn" onclick="setSourceTab('file', this)">Upload File</button>
+        <button id="btn-tab-local" class="tab-btn" onclick="setSourceTab('local', this)">Local Path</button>
+      </div>
+
+      <div id="tab-youtube">
+        <label>Paste YouTube video or Kick VOD URL</label>
+        <input type="text" id="youtubeUrl" placeholder="https://kick.com/creator/videos/... or youtube.com/watch?v=..." />
+        <div class="small" style="margin-top:5px;">Only downloads audio first — fast even on 3-hour streams.</div>
+      </div>
+
+      <div id="tab-file" class="hidden">
+        <div class="drop-zone">
+          <input type="file" id="videoFile" accept="video/*" />
+          <div class="small" style="margin-top:6px;">MP4, MOV, MKV, WebM — processed on your Mac</div>
+        </div>
+      </div>
+
+      <div id="tab-local" class="hidden">
+        <label>Video path on your Mac / External Drive</label>
+        <input type="text" id="localPath" placeholder="/Volumes/MyDrive/stream.mp4" />
+      </div>
+
+      <h2 style="margin-top:18px;">2. Clip Settings</h2>
+      <div class="row-2">
+        <div>
+          <label>How Many Shorts</label>
+          <input type="number" id="numClips" value="3" min="1" max="10" />
+        </div>
+        <div>
+          <label>Subtitle Language</label>
+          <select id="subtitleLanguage">
+            <option value="auto" selected>Auto Detect</option>
+            <option value="en">English</option>
+            <option value="hi">Hindi / Hinglish</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Vertical Framing Style</label>
+      <select id="layoutPref">
+        <option value="auto" selected>Auto (Best for video type)</option>
+        <option value="face_track_9_16">Face Tracking (Zooms on speaker)</option>
+        <option value="blurred_bg_fit">Full Width + Blurred Background (Gaming / IRL)</option>
+        <option value="split_screen_focus">Split Screen (Game Top + Face Bottom)</option>
+        <option value="center_9_16">Simple Center Crop</option>
+      </select>
+
+      <label style="display:flex; align-items:center; gap:8px; margin-top:12px; color:var(--text); cursor:pointer;">
+        <input type="checkbox" id="burnCaptions" checked style="width:auto;" />
+        Burn bold karaoke captions &amp; top hook title
+      </label>
+
+      <details class="box">
+        <summary style="color:var(--accent-2);">💰 Bounty / Creator Rules (Optional)</summary>
+        <input type="hidden" id="activeCampaignId" value="" />
+        <div id="activeCampaignBanner" class="small" style="margin-top:8px; color:var(--ok); display:none;"></div>
+        <label>Top-Right Watermark (leave empty unless required)</label>
+        <input type="text" id="watermarkText" placeholder="e.g. kick.com/creator" />
+        <div class="row-2">
+          <div>
+            <label>Creator @Tag</label>
+            <input type="text" id="creatorTag" placeholder="@creator" />
+          </div>
+          <div>
+            <label>Max Length (15–60s)</label>
+            <input type="number" id="targetMaxDuration" min="15" max="60" value="45" />
+          </div>
+        </div>
+        <label>Hashtags for Caption</label>
+        <input type="text" id="requiredHashtags" placeholder="#kick #gaming #clips #shorts" />
+      </details>
+
+      <details class="box">
+        <summary style="color:var(--muted);">⚙️ Advanced AI &amp; Download Options</summary>
+        <label>Download Mode (URL)</label>
+        <select id="youtubeMode">
+          <option value="audio_first" selected>Fast Audio-First + 1080p Clip Slices (Recommended)</option>
+          <option value="full_video">Download Full Video</option>
+        </select>
+        <div class="row-2">
+          <div>
+            <label>AI Optimization Rounds</label>
+            <input type="number" id="rsiIterations" value="3" min="1" max="6" />
+          </div>
+          <div>
+            <label>Caption Alphabet</label>
+            <select id="subtitleScript">
+              <option value="roman" selected>Roman (English / Hinglish)</option>
+              <option value="native">Native Script</option>
+            </select>
+          </div>
+        </div>
+        <div class="row-2">
+          <div>
+            <label>AI Engine</label>
+            <select id="llmProvider">
+              <option value="auto_free" selected>Auto ($0 Groq / Local)</option>
+              <option value="groq">Groq Cloud</option>
+              <option value="local_offline">Offline Heuristic</option>
+              <option value="ollama">Ollama Local</option>
+              <option value="gemini">Gemini API</option>
+              <option value="openai">OpenAI API</option>
+            </select>
+          </div>
+          <div>
+            <label>Local Whisper Fallback</label>
+            <select id="whisperModel">
+              <option value="tiny">tiny (fastest)</option>
+              <option value="base" selected>base (balanced)</option>
+              <option value="small">small (accurate)</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <div class="box" style="margin-top:10px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-2);">
+        <label style="display:flex; align-items:center; gap:8px; margin:0; color:var(--text); cursor:pointer;">
+          <input type="checkbox" id="autoUploadYoutube" style="width:auto;" />
+          🚀 Auto-upload finished Shorts to YouTube
+        </label>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+          <select id="youtubePrivacy" style="flex:1;">
+            <option value="private" selected>Private (review first)</option>
+            <option value="unlisted">Unlisted (share link)</option>
+            <option value="public">Public (live immediately)</option>
+          </select>
+          <span id="ytSidebarStatus" class="small" style="white-space:nowrap; cursor:pointer;" onclick="openTab('storage')">YT: Setup →</span>
+        </div>
+      </div>
+
+      <button id="submitBtn" class="btn btn-primary" onclick="startJob()">
+        ✨ Create Shorts
+      </button>
+
+      <div class="progress-box">
+        <div class="flex-between">
+          <div id="jobStatusLine" class="small" style="color:var(--text); font-weight:600;">Ready. Paste a URL or pick a video.</div>
+          <span id="jobProgressPct" class="small"></span>
+        </div>
+        <div class="progress-track"><div id="jobProgressFill" class="progress-fill"></div></div>
+        <details style="margin-top:8px;">
+          <summary class="small" style="cursor:pointer;">Show technical progress log</summary>
+          <div id="logsBox" class="logs">Waiting to start...</div>
+        </details>
+      </div>
+    </aside>
+
+    <!-- Right Main Panel -->
+    <main id="mainSection" class="card">
+      <div class="tabs">
+        <button id="tab-btn-clips" class="tab-btn active" onclick="setMainTab('clips', this)">🎬 My Shorts</button>
+        <button id="tab-btn-campaigns" class="tab-btn" onclick="setMainTab('campaigns', this)">💰 Bounties &amp; CPM</button>
+        <button id="tab-btn-storage" class="tab-btn" onclick="setMainTab('storage', this)">⚙️ Setup &amp; Storage</button>
+        <button id="tab-btn-trace" class="tab-btn" onclick="setMainTab('trace', this)">🧠 How AI Picked</button>
+        <button id="tab-btn-memory" class="tab-btn" onclick="setMainTab('memory', this)">📚 AI Memory (v<span id="memGen">1</span>)</button>
+      </div>
+
+      <!-- TAB 1: GENERATED SHORTS -->
+      <div id="panel-clips">
+        <div id="clipsToolbar" class="flex-between hidden" style="margin-bottom:12px; flex-wrap:wrap; background:var(--surface-2); padding:10px 12px; border-radius:10px; border:1px solid var(--border);">
+          <span class="small">Wrong words in captions? Re-run Whisper v3 word sync on these clips in 1 click.</span>
+          <button id="resubBtn" class="btn btn-ghost" onclick="retranscribeCurrentJob()">🔄 Fix Subtitles</button>
+        </div>
+
+        <div id="clipsEmpty" style="padding:22px 10px; text-align:center;">
+          <h3 style="font-size:18px; margin-bottom:6px;">Turn Long Streams &amp; Videos into Viral Shorts</h3>
+          <div class="small">Everything runs free using Groq Cloud AI + local FFmpeg. No watermarks added by us.</div>
+          <div class="empty-steps">
+            <div class="step-box">
+              <strong>1. Paste Link or Video</strong>
+              <div class="small" style="margin-top:4px;">Drop any YouTube link, Kick VOD (`kick.com/.../videos/...`), or local recording on the left.</div>
+            </div>
+            <div class="step-box">
+              <strong>2. Review Top Moments</strong>
+              <div class="small" style="margin-top:4px;">AI finds the best hooks, tracks speakers in 9:16, burns karaoke captions, and writes your title/tags.</div>
+            </div>
+            <div class="step-box">
+              <strong>3. Post &amp; Earn CPM</strong>
+              <div class="small" style="margin-top:4px;">Upload directly to YouTube Shorts in 1 click or copy captions for TikTok/Reels &amp; track campaign payouts.</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick="openTab('campaigns')">Browse Saved Bounties</button>
+            <button class="btn btn-ghost" onclick="openTab('storage')">Connect YouTube Channel</button>
+          </div>
+        </div>
+        <div id="clipsGrid" class="clips-grid"></div>
+      </div>
+
+      <!-- TAB 2: BOUNTIES & CPM -->
+      <div id="panel-campaigns" class="hidden">
+        <div class="flex-between" style="margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div>
+            <h3 style="margin-bottom:2px;">Clip Bounties &amp; CPM Earnings Tracker</h3>
+            <div class="small">Save rules from Whop Content Rewards or Creator Discords, load them in 1 click, and track views.</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span class="score-pill">Views: <strong id="campTotalViews">0</strong></span>
+            <span class="score-pill">Est. Payout: <strong id="campTotalUsd">$0.00</strong></span>
+          </div>
+        </div>
+
+        <details class="subcard">
+          <summary style="cursor:pointer; font-weight:600; font-size:13px; color:var(--accent-2);">
+            + Add or Edit a Bounty Preset
+          </summary>
+          <input type="hidden" id="campEditId" value="" />
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap:10px; margin-top:8px;">
+            <div>
+              <label>Campaign Name</label>
+              <input type="text" id="campName" placeholder="e.g. N3on Clips / Whop Campaign" />
+            </div>
+            <div>
+              <label>Platform</label>
+              <select id="campPlatform">
+                <option value="Whop Content Rewards">Whop Content Rewards</option>
+                <option value="Kick Creator Discord">Kick Creator Discord</option>
+                <option value="Vyro / Try Shoot / Clipify">Vyro / Try Shoot / Clipify</option>
+                <option value="YouTube Shorts / AdSense">YouTube Shorts / AdSense</option>
+              </select>
+            </div>
+            <div>
+              <label>Pay Rate ($ per 1,000 views)</label>
+              <input type="number" id="campCpm" step="0.05" min="0" value="1.50" />
+            </div>
+            <div>
+              <label>Max Payout Cap / Clip ($, 0 = no cap)</label>
+              <input type="number" id="campCap" step="1" min="0" value="100" />
+            </div>
+            <div>
+              <label>Required Watermark (optional)</label>
+              <input type="text" id="campWatermark" placeholder="leave empty if none" />
+            </div>
+            <div>
+              <label>Creator @Tag</label>
+              <input type="text" id="campCreatorTag" placeholder="@creator" />
+            </div>
+            <div>
+              <label>Required Hashtags</label>
+              <input type="text" id="campHashtags" placeholder="#kick #gaming #clips #shorts" />
+            </div>
+            <div>
+              <label>Max Clip Length (sec)</label>
+              <input type="number" id="campMaxDur" min="15" max="60" value="45" />
+            </div>
+          </div>
+          <label>Stream / VOD Link (optional)</label>
+          <input type="text" id="campVodUrl" placeholder="https://kick.com/creator/videos/..." />
+          <label>Rules / Notes</label>
+          <textarea id="campNotes" rows="2" placeholder="Paste any campaign requirements here (min views, Tier-1 %, approval notes)..."></textarea>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button class="btn btn-primary" style="margin-top:0; width:auto;" onclick="saveCampaign()">Save Preset</button>
+            <button class="btn btn-ghost" onclick="clearCampaignForm()">Reset</button>
+          </div>
+        </details>
+
+        <div id="campaignsList" style="display:flex; flex-direction:column; gap:12px;"></div>
+
+        <div class="rule-pill" style="margin-top:12px;">
+          <strong>Tip before posting:</strong> Make sure you joined the campaign on Whop/Discord first, verify the budget pool still has funds, and avoid copyrighted background songs.
+        </div>
+      </div>
+
+      <!-- TAB 3: SETUP & STORAGE -->
+      <div id="panel-storage" class="hidden">
+        <div class="subcard">
+          <h3>📺 YouTube Shorts Auto-Upload ($0 Free API)</h3>
+          <div id="youtubeStatusBox" class="rule-pill">Checking YouTube connection...</div>
+          <div class="small" style="margin-bottom:8px; line-height:1.55;">
+            <strong>Quick Setup:</strong><br />
+            1. In Google Cloud Console, enable <em>YouTube Data API v3</em> and create an OAuth Client ID (<em>Web application</em>) with Redirect URI: <code>http://127.0.0.1:8765/api/youtube/callback</code>.<br />
+            2. Under <strong>Google Auth Platform → Audience → Test users</strong>, add the exact Gmail address you sign into YouTube with *(prevents <code>Error 403: access_denied</code>)*.<br />
+            3. Paste your downloaded <code>client_secret.json</code> below → click <strong>Save OAuth Client</strong> → <strong>Connect YouTube Channel</strong>.
+          </div>
+          <label>Paste Google Cloud <code>client_secret.json</code></label>
+          <textarea id="ytClientJsonInput" rows="2" placeholder='{"web":{"client_id":"...","client_secret":"..."}}'></textarea>
+          <details style="margin-top:6px;">
+            <summary class="small" style="cursor:pointer;">Or enter Client ID &amp; Secret manually</summary>
+            <div class="row-2" style="margin-top:6px;">
+              <input type="text" id="ytClientIdInput" placeholder="Client ID (.apps.googleusercontent.com)" />
+              <input type="password" id="ytClientSecretInput" placeholder="Client Secret (GOCSPX-...)" />
+            </div>
+          </details>
+          <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick="saveYoutubeConfig()">1. Save OAuth Client</button>
+            <button class="btn btn-primary" style="margin-top:0; width:auto;" onclick="connectYoutube()">2. Connect YouTube Channel</button>
+            <button class="btn btn-bad" onclick="disconnectYoutube()">Disconnect</button>
+          </div>
+        </div>
+
+        <div class="subcard">
+          <h3>⚡ Cloud AI, Storage Drive &amp; Cookies</h3>
+          <label>Groq Free API Key (runs Whisper + AI on Groq Cloud with 0% Mac CPU)</label>
+          <input type="password" id="groqKeyInput" placeholder="gsk_... (leave blank to keep saved key)" />
+          <label>Save Clips To (Mac / External Drive)</label>
+          <div class="flex-between">
+            <select id="volumeSelect" onchange="if(this.value) document.getElementById('storageDirInput').value = this.value;"></select>
+            <button class="btn btn-ghost" onclick="refreshStorage()">Scan Drives</button>
+          </div>
+          <input type="text" id="storageDirInput" style="margin-top:6px;" placeholder="/Volumes/MyDrive/Shorts" />
+          <details style="margin-top:10px;">
+            <summary class="small" style="cursor:pointer;">YouTube Cookies (only needed if a YouTube link blocks download)</summary>
+            <label>Cookies File Path</label>
+            <input type="text" id="cookiesFileInput" placeholder="/path/to/cookies.txt" />
+            <label>Or Paste <code>cookies.txt</code></label>
+            <textarea id="cookiesTextInput" rows="2" placeholder="# Netscape HTTP Cookie File..."></textarea>
+          </details>
+          <label style="display:flex; align-items:center; gap:8px; margin-top:12px; color:var(--text); cursor:pointer;">
+            <input type="checkbox" id="autoCleanupCheck" checked style="width:auto;" />
+            Auto-delete temporary files after rendering (saves disk space)
+          </label>
+          <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+            <button class="btn btn-primary" style="margin-top:0; flex:1;" onclick="saveStorageSettings()">Save Settings</button>
+            <button class="btn btn-ghost" onclick="cleanupTempStorage()">Clean Temp Cache</button>
+          </div>
+          <div id="storageStatsBox" class="rule-pill" style="margin-top:12px; margin-bottom:0;"></div>
+        </div>
+      </div>
+
+      <!-- TAB 4: HOW AI PICKED -->
+      <div id="panel-trace" class="hidden">
+        <div id="traceList" class="small">Create a Short to see how the AI scored hooks, fixed timings, and improved clips.</div>
+      </div>
+
+      <!-- TAB 5: AI MEMORY -->
+      <div id="panel-memory" class="hidden">
+        <div class="flex-between" style="margin-bottom:12px;">
+          <div class="small">Your 👍/👎 feedback trains these rules automatically for future clips.</div>
+          <button class="btn btn-ghost" onclick="resetMemory()">Reset to Defaults</button>
+        </div>
+        <div id="memoryView"></div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <nav class="mobile-nav" aria-label="Mobile Navigation">
+    <button id="mnav-create" class="mobile-nav-btn active" onclick="mobileGoCreate()">
+      <span style="font-size:16px;">✨</span><span>Create</span>
+    </button>
+    <button id="mnav-clips" class="mobile-nav-btn" onclick="mobileGoTab('clips')">
+      <span style="font-size:16px;">🎬</span><span>Shorts</span>
+    </button>
+    <button id="mnav-campaigns" class="mobile-nav-btn" onclick="mobileGoTab('campaigns')">
+      <span style="font-size:16px;">💰</span><span>Bounties</span>
+    </button>
+    <button id="mnav-storage" class="mobile-nav-btn" onclick="mobileGoTab('storage')">
+      <span style="font-size:16px;">⚙️</span><span>Setup</span>
+    </button>
+  </nav>
+
+  <script>
+    let sourceTab = 'youtube';
+    let currentJobId = null;
+    let pollTimer = null;
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]
+      ));
+    }
+
+    function setSourceTab(tab, btn) {
+      sourceTab = tab;
+      document.querySelectorAll('#tab-file, #tab-youtube, #tab-local').forEach(el => el.classList.add('hidden'));
+      document.getElementById('tab-' + tab).classList.remove('hidden');
+      if (btn) {
+        btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+    }
+
+    function setMobileNavActive(id) {
+      document.querySelectorAll('.mobile-nav-btn').forEach(b => b.classList.remove('active'));
+      const el = document.getElementById(id);
+      if (el) el.classList.add('active');
+    }
+
+    function mobileGoCreate() {
+      setMobileNavActive('mnav-create');
+      const el = document.getElementById('createSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function mobileGoTab(tab) {
+      openTab(tab);
+      setMobileNavActive('mnav-' + tab);
+      const el = document.getElementById('mainSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function openTab(tab) {
+      const btn = document.getElementById('tab-btn-' + tab);
+      setMainTab(tab, btn);
+      if (document.getElementById('mnav-' + tab)) setMobileNavActive('mnav-' + tab);
+      if (window.innerWidth <= 980) {
+        const el = document.getElementById('mainSection');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function setMainTab(tab, btn) {
+      document.querySelectorAll('#panel-clips, #panel-campaigns, #panel-trace, #panel-memory, #panel-storage').forEach(el => el.classList.add('hidden'));
+      document.getElementById('panel-' + tab).classList.remove('hidden');
+      if (btn) {
+        btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+      if (tab === 'campaigns') refreshCampaigns();
+      if (tab === 'memory') refreshMemory();
+      if (tab === 'storage') { refreshStorage(); refreshYoutubeStatus(); }
+    }
+
+    async function refreshHealth() {
+      const res = await fetch('/api/health');
+      const h = await res.json();
+      const badge = document.getElementById('healthBadge');
+      const txLabel = h.transcription_mode === 'groq_cloud' ? 'Groq Cloud Ready' : 'Local Mode';
+      badge.textContent = `${h.ffmpeg ? 'FFmpeg OK' : 'FFmpeg Missing'} · ${txLabel}`;
+      if (!h.ffmpeg) badge.classList.add('warn'); else badge.classList.add('ok');
+      document.getElementById('memGen').textContent = h.memory.generation;
+      renderMemory(h.memory);
+      if (h.storage) renderStorage(h.storage);
+      if (h.youtube) applyYoutubeStatus(h.youtube);
+    }
+
+    async function refreshStorage() {
+      const res = await fetch('/api/storage');
+      const s = await res.json();
+      renderStorage(s);
+    }
+
+    function renderStorage(s) {
+      const sb = document.getElementById('storageBadge');
+      sb.textContent = `Disk: ${s.free_gb} GB free`;
+      if (s.free_gb < 15) sb.classList.add('warn'); else sb.classList.remove('warn');
+
+      document.getElementById('storageDirInput').value = s.storage_dir;
+      document.getElementById('cookiesFileInput').value = s.yt_dlp_cookies_file || '';
+      document.getElementById('groqKeyInput').placeholder = s.groq_configured
+        ? `Saved (${s.groq_key_hint}) — paste to replace`
+        : 'gsk_... (free at console.groq.com)';
+      document.getElementById('autoCleanupCheck').checked = !!s.auto_cleanup_work;
+
+      const sel = document.getElementById('volumeSelect');
+      sel.innerHTML = '';
+      for (const v of (s.volumes || [])) {
+        const opt = document.createElement('option');
+        opt.value = v.path;
+        opt.textContent = `${v.label} — ${v.free_gb} GB free`;
+        if (v.path === s.storage_dir) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      document.getElementById('storageStatsBox').innerHTML =
+        `<strong>Folder:</strong> <code>${escapeHtml(s.storage_dir)}</code> · ` +
+        `<strong>Groq AI:</strong> ${s.groq_configured ? `Active (${escapeHtml(s.groq_key_hint)})` : 'Not set'} · ` +
+        `<strong>Cookies:</strong> ${s.cookies_configured ? 'Saved' : 'None'}<br>` +
+        `<strong>App Cache:</strong> temp = ${s.work_mb} MB · uploads = ${s.uploads_mb} MB · finished Shorts = ${s.outputs_mb} MB`;
+    }
+
+    async function saveStorageSettings() {
+      const storage_dir = document.getElementById('storageDirInput').value.trim();
+      const yt_dlp_cookies_file = document.getElementById('cookiesFileInput').value.trim();
+      const cookiesText = document.getElementById('cookiesTextInput').value;
+      const groqKeyVal = document.getElementById('groqKeyInput').value.trim();
+      const auto_cleanup_work = document.getElementById('autoCleanupCheck').checked;
+      const payload = {
+        storage_dir,
+        auto_cleanup_work,
+        yt_dlp_cookies_file,
+        groq_api_key: groqKeyVal ? groqKeyVal : '__KEEP__',
+      };
+      if (cookiesText.trim()) payload.yt_dlp_cookies_text = cookiesText;
+      const res = await fetch('/api/storage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        return alert(err.detail || 'Failed to update settings');
+      }
+      document.getElementById('groqKeyInput').value = '';
+      document.getElementById('cookiesTextInput').value = '';
+      renderStorage(await res.json());
+      refreshHealth();
+      showToast('Settings saved!');
+    }
+
+    async function cleanupTempStorage() {
+      const res = await fetch('/api/storage/cleanup', { method: 'POST' });
+      const s = await res.json();
+      renderStorage(s);
+      showToast(`Cleaned ${s.freed_mb} MB of temp files`);
+    }
+
+    async function refreshRecentJobs() {
+      const res = await fetch('/api/jobs');
+      const jobs = await res.json();
+      const sel = document.getElementById('recentJobs');
+      sel.innerHTML = '<option value="">Switch past project...</option>';
+      for (const j of jobs) {
+        const opt = document.createElement('option');
+        opt.value = j.job_id;
+        const icon = j.status === 'completed' ? '✅' : (j.status === 'running' ? '⏳' : '⚠️');
+        const label = (j.source_label || '').replace(/^https?:\/\/(www\.)?/, '').slice(0, 28);
+        opt.textContent = `${icon} ${label} (${j.num_clips} Shorts)`;
+        if (j.job_id === currentJobId) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      if (!currentJobId && jobs.length > 0) {
+        const active = jobs.find(j => j.status === 'running' || j.status === 'completed');
+        if (active) loadSelectedJob(active.job_id);
+      }
+    }
+
+    async function startJob() {
+      const fd = new FormData();
+      if (sourceTab === 'file') {
+        const file = document.getElementById('videoFile').files[0];
+        if (!file) return alert('Choose a video file first.');
+        fd.append('video_file', file);
+      } else if (sourceTab === 'youtube') {
+        const url = document.getElementById('youtubeUrl').value.trim();
+        if (!url) return alert('Paste a YouTube or Kick URL first.');
+        fd.append('youtube_url', url);
+        fd.append('youtube_mode', document.getElementById('youtubeMode').value);
+      } else {
+        const lp = document.getElementById('localPath').value.trim();
+        if (!lp) return alert('Enter a local video path first.');
+        fd.append('local_path', lp);
+      }
+      fd.append('num_clips', document.getElementById('numClips').value);
+      fd.append('rsi_iterations', document.getElementById('rsiIterations').value);
+      fd.append('layout_preference', document.getElementById('layoutPref').value);
+      fd.append('llm_provider', document.getElementById('llmProvider').value);
+      fd.append('whisper_model', document.getElementById('whisperModel').value);
+      fd.append('burn_captions', document.getElementById('burnCaptions').checked);
+      fd.append('subtitle_language', document.getElementById('subtitleLanguage').value);
+      fd.append('subtitle_script', document.getElementById('subtitleScript').value);
+      fd.append('watermark_text', document.getElementById('watermarkText').value.trim());
+      fd.append('creator_tag', document.getElementById('creatorTag').value.trim());
+      fd.append('required_hashtags', document.getElementById('requiredHashtags').value.trim());
+      fd.append('target_max_duration', document.getElementById('targetMaxDuration').value || '60');
+      fd.append('campaign_id', document.getElementById('activeCampaignId').value.trim());
+      fd.append('auto_upload_youtube', document.getElementById('autoUploadYoutube').checked);
+      fd.append('youtube_privacy', document.getElementById('youtubePrivacy').value);
+
+      document.getElementById('submitBtn').disabled = true;
+      updateProgressUI('Starting project...', 8);
+      openTab('clips');
+
+      const res = await fetch('/api/jobs', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const err = await res.json();
+        document.getElementById('submitBtn').disabled = false;
+        updateProgressUI('Could not start job.', 0);
+        return alert(err.detail || 'Failed to start job');
+      }
+      const job = await res.json();
+      currentJobId = job.job_id;
+      startPolling(job.job_id);
+      refreshRecentJobs();
+    }
+
+    function updateProgressUI(text, pct) {
+      document.getElementById('jobStatusLine').textContent = text;
+      document.getElementById('jobProgressPct').textContent = pct > 0 ? `${pct}%` : '';
+      document.getElementById('jobProgressFill').style.width = `${pct}%`;
+    }
+
+    function summarizeJobProgress(job) {
+      if (job.status === 'completed') return { text: `Done! ${job.clips?.length || 0} Shorts ready.`, pct: 100 };
+      if (job.status === 'failed') return { text: 'Error — see technical log below.', pct: 0 };
+      const logsText = (job.logs || []).join('\n');
+      if (logsText.includes('Auto-uploading')) return { text: 'Uploading Shorts to YouTube...', pct: 92 };
+      if (logsText.includes('Rendering clip_')) return { text: 'Creating 1080×1920 vertical Shorts...', pct: 80 };
+      if (logsText.includes('Precision subtitle pass')) return { text: 'Syncing accurate word captions...', pct: 68 };
+      if (logsText.includes('Fetching 1080p video slice')) return { text: 'Fetching HD clips for best moments...', pct: 55 };
+      if (logsText.includes('RSI Round')) return { text: 'AI picking best viral moments...', pct: 45 };
+      if (logsText.includes('Groq Cloud Whisper') || logsText.includes('Transcribing')) return { text: 'Listening & transcribing speech...', pct: 32 };
+      if (logsText.includes('Downloading')) return { text: 'Downloading stream audio...', pct: 18 };
+      return { text: 'Starting pipeline...', pct: 10 };
+    }
+
+    function startPolling(jobId) {
+      if (pollTimer) clearInterval(pollTimer);
+      pollJob(jobId);
+      pollTimer = setInterval(() => pollJob(jobId), 1500);
+    }
+
+    async function loadSelectedJob(jobId) {
+      if (!jobId) return;
+      currentJobId = jobId;
+      startPolling(jobId);
+    }
+
+    async function pollJob(jobId) {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      if (!res.ok) {
+        if (res.status === 404 && pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+        return;
+      }
+      const job = await res.json();
+      const prog = summarizeJobProgress(job);
+      updateProgressUI(prog.text, prog.pct);
+      document.getElementById('logsBox').textContent = (job.logs || []).join('\n') || 'Queued...';
+      const box = document.getElementById('logsBox');
+      box.scrollTop = box.scrollHeight;
+
+      if (job.rsi_traces && job.rsi_traces.length) renderTraces(job.rsi_traces);
+      if (job.clips && job.clips.length) renderClips(job);
+
+      if (job.status === 'completed' || job.status === 'failed') {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        document.getElementById('submitBtn').disabled = false;
+        refreshMemory();
+        refreshStorage();
+        refreshRecentJobs();
+      }
+    }
+
+    function renderClips(job) {
+      document.getElementById('clipsEmpty').classList.add('hidden');
+      const tb = document.getElementById('clipsToolbar');
+      if (tb) tb.classList.remove('hidden');
+      const grid = document.getElementById('clipsGrid');
+      grid.innerHTML = '';
+      job.clips.forEach((c, idx) => {
+        const ev = c.evaluation || {};
+        const subs = ev.subscores || {};
+        const card = document.createElement('div');
+        card.className = 'clip-card';
+        const barsHtml = Object.entries(subs).map(([k, v]) => {
+          const num = Number(v || 0);
+          const pct = Math.max(0, Math.min(100, num > 10 ? num : num * 10));
+          const label = escapeHtml(k.replace(/_/g, ' '));
+          return `
+            <div class="rubric-bar">
+              <div class="flex-between"><span style="text-transform:capitalize;">${label}</span><span>${Math.round(pct)}%</span></div>
+              <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+            </div>
+          `;
+        }).join('');
+
+        const pp = c.post_pack || null;
+        const comp = (pp && pp.compliance) ? pp.compliance : null;
+        const bountyHtml = pp ? `
+          <details class="box" style="margin-top:2px; padding:8px 10px; background:var(--surface);">
+            <summary style="color:var(--accent-2);">📋 Caption, Tags &amp; Bounty Check</summary>
+            <div class="small" style="margin-top:6px; display:flex; flex-wrap:wrap; gap:8px;">
+              <span>${comp && comp.vertical_9_16 ? '✅' : '⚠️'} 9:16</span>
+              <span>${comp && comp.duration_ok ? '✅' : '⚠️'} ${(c.end - c.start).toFixed(1)}s</span>
+              <span>${comp && comp.captions_burned ? '✅' : '⚠️'} Captions</span>
+              <span>${comp && comp.watermark_burned ? '✅ ' + escapeHtml(comp.watermark_text || '') : '➖ No Watermark'}</span>
+            </div>
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn btn-ghost" onclick="copyClipPack('${c.clip_id}', 'title')">Copy Title</button>
+              <button class="btn btn-ghost" onclick="copyClipPack('${c.clip_id}', 'caption')">Copy Caption + Tags</button>
+            </div>
+            <textarea id="pp-title-${c.clip_id}" class="hidden">${escapeHtml(pp.title || '')}</textarea>
+            <textarea id="pp-caption-${c.clip_id}" class="hidden">${escapeHtml(pp.caption || '')}</textarea>
+          </details>
+        ` : '';
+
+        const ytUp = c.youtube_upload || null;
+        const ytHtml = ytUp ? `
+          <div class="rule-pill" style="margin:2px 0; border-color:rgba(52,211,153,0.45); background:rgba(52,211,153,0.08);">
+            ✅ Uploaded (${escapeHtml(ytUp.privacy_status)}):
+            <a href="${escapeHtml(ytUp.url)}" target="_blank" rel="noopener" style="color:var(--accent-2); font-weight:600;">Open Short ↗</a>
+          </div>
+        ` : `
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <select id="yt-priv-${c.clip_id}" style="flex:0 0 110px; width:auto; padding:7px;">
+              <option value="private">Private</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+            </select>
+            <button class="btn btn-primary" id="yt-btn-${c.clip_id}" style="margin-top:0; width:auto; padding:8px 12px; font-size:12px; flex:1;" onclick="uploadClipToYoutube('${job.job_id}','${c.clip_id}')">
+              🚀 Upload to YT Shorts
+            </button>
+          </div>
+          ${c.youtube_upload_error ? `<div class="small" style="color:var(--danger);">YT Error: ${escapeHtml(c.youtube_upload_error)}</div>` : ''}
+        `;
+
+        card.innerHTML = `
+          <div class="flex-between">
+            <strong>Short #${idx + 1} · ${(c.end - c.start).toFixed(1)}s</strong>
+            <span class="score-pill">Score ${c.score ?? ev.overall_score ?? '-'}</span>
+          </div>
+          <video class="short-player" controls playsinline webkit-playsinline preload="metadata" src="${c.output_url}?t=${Date.now()}"></video>
+          <div style="font-weight:700; font-size:14px;">${escapeHtml(c.hook_title || '')}</div>
+          <div class="small" style="color:#cbd5e1;">"${escapeHtml(ev.text_preview || '')}"</div>
+          <div class="metrics-grid">${barsHtml}</div>
+          ${bountyHtml}
+          ${ytHtml}
+          <div class="flex-between" style="flex-wrap:wrap;">
+            <a class="btn btn-ghost" href="${c.output_url}" download="${c.clip_id}.mp4">⬇️ Download MP4 (${c.file_size_mb || '?'} MB)</a>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-ok" onclick="sendFeedback('${job.job_id}','${c.clip_id}','up')">👍 Great</button>
+              <button class="btn btn-bad" onclick="sendFeedback('${job.job_id}','${c.clip_id}','down')">👎 Fix</button>
+            </div>
+          </div>
+          <input type="text" id="note-${c.clip_id}" placeholder="Optional feedback note for AI..." />
+          <details>
+            <summary class="small" style="cursor:pointer;">✂️ Trim Timing / Change Crop (${escapeHtml(c.layout)})</summary>
+            <div class="row-2" style="margin-top:6px;">
+              <input type="number" step="0.1" id="st-${c.clip_id}" value="${c.start}" />
+              <input type="number" step="0.1" id="en-${c.clip_id}" value="${c.end}" />
+            </div>
+            <input type="text" id="hk-${c.clip_id}" value="${(c.hook_title || '').replace(/"/g, '&quot;')}" style="margin-top:6px;" />
+            <select id="ly-${c.clip_id}" style="margin-top:6px;">
+              <option value="blurred_bg_fit" ${c.layout === 'blurred_bg_fit' ? 'selected' : ''}>Blurred Background (Wide fit)</option>
+              <option value="face_track_9_16" ${c.layout === 'face_track_9_16' ? 'selected' : ''}>Face Tracking 9:16</option>
+              <option value="split_screen_focus" ${c.layout === 'split_screen_focus' ? 'selected' : ''}>Split Screen</option>
+              <option value="center_9_16" ${c.layout === 'center_9_16' ? 'selected' : ''}>Center Crop</option>
+            </select>
+            <button class="btn btn-ghost" style="width:100%; margin-top:6px;" onclick="rerenderClip('${job.job_id}','${c.clip_id}')">Re-Render Short</button>
+          </details>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderTraces(traces) {
+      const el = document.getElementById('traceList');
+      el.innerHTML = traces.map(tr => `
+        <div class="trace-card">
+          <div class="flex-between">
+            <strong>Optimization Pass ${tr.round}</strong>
+            <span class="badge">Score: ${tr.avg_score_before} → ${tr.avg_score_after}</span>
+          </div>
+          ${(tr.meta_updates || []).map(m => `<div class="mutation-item">⚡ Learned: ${escapeHtml(m)}</div>`).join('')}
+          <div style="margin-top:8px;">
+            ${tr.clips.map(c => `
+              <div style="border-top:1px solid var(--border); padding-top:8px; margin-top:8px;">
+                <div class="flex-between">
+                  <span><strong>${escapeHtml(c.clip_id)}</strong> (${c.start}s - ${c.end}s · ${escapeHtml(c.layout)})</span>
+                  <span>${c.score_before} → <strong>${c.score_after}</strong></span>
+                </div>
+                ${(c.weaknesses || []).map(w => `<div class="weakness-item">• Noted: ${escapeHtml(w)}</div>`).join('')}
+                ${(c.mutations || []).map(m => `<div class="mutation-item">✓ Improved: ${escapeHtml(m)}</div>`).join('')}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function sendFeedback(jobId, clipId, rating) {
+      const note = document.getElementById(`note-${clipId}`).value;
+      const res = await fetch(`/api/clips/${jobId}/${clipId}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating, note }),
+      });
+      const data = await res.json();
+      document.getElementById('memGen').textContent = data.generation;
+      renderMemory(data.memory);
+      showToast(`Saved! AI memory updated to v${data.generation}`);
+    }
+
+    async function retranscribeCurrentJob() {
+      if (!currentJobId) return;
+      const btn = document.getElementById('resubBtn');
+      if (btn) btn.disabled = true;
+      const res = await fetch(`/api/jobs/${currentJobId}/retranscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subtitle_language: document.getElementById('subtitleLanguage').value,
+          subtitle_script: document.getElementById('subtitleScript').value,
+        }),
+      });
+      if (btn) btn.disabled = false;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return alert(err.detail || 'Subtitle sync failed');
+      }
+      startPolling(currentJobId);
+    }
+
+    async function rerenderClip(jobId, clipId) {
+      const body = {
+        start: parseFloat(document.getElementById(`st-${clipId}`).value),
+        end: parseFloat(document.getElementById(`en-${clipId}`).value),
+        layout: document.getElementById(`ly-${clipId}`).value,
+        hook_title: document.getElementById(`hk-${clipId}`).value,
+      };
+      const res = await fetch(`/api/clips/${jobId}/${clipId}/rerender`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return alert('Re-render failed');
+      showToast('Clip re-rendered!');
+      pollJob(jobId);
+    }
+
+    async function refreshMemory() {
+      const res = await fetch('/api/memory');
+      const m = await res.json();
+      document.getElementById('memGen').textContent = m.generation;
+      renderMemory(m);
+    }
+
+    function renderMemory(m) {
+      document.getElementById('memoryView').innerHTML = `
+        <h3>Current Selection Style (v${m.generation})</h3>
+        <div class="rule-pill">${escapeHtml(m.strategy_prompt)}</div>
+        <h3 style="margin-top:12px;">Learned Rules (${(m.learned_rules || []).length})</h3>
+        ${(m.learned_rules || []).map(r => `<div class="rule-pill">• ${escapeHtml(r)}</div>`).join('')}
+        <h3 style="margin-top:12px;">Scoring Weights</h3>
+        <div class="rule-pill">${Object.entries(m.weights || {}).map(([k, v]) => `${escapeHtml(k)}: <strong>${v}</strong>`).join(' · ')}</div>
+      `;
+    }
+
+    async function resetMemory() {
+      if (!confirm('Reset AI style memory back to v1 defaults?')) return;
+      const res = await fetch('/api/memory/reset', { method: 'POST' });
+      const m = await res.json();
+      document.getElementById('memGen').textContent = m.generation;
+      renderMemory(m);
+      showToast('AI memory reset to v1');
+    }
+
+    async function copyClipPack(clipId, kind) {
+      const el = document.getElementById(`pp-${kind}-${clipId}`);
+      if (!el) return;
+      try {
+        await navigator.clipboard.writeText(el.value);
+        showToast(`Copied ${kind}!`);
+      } catch (e) {
+        prompt(`Copy ${kind}:`, el.value);
+      }
+    }
+
+    let _cachedCampaigns = [];
+
+    function clearCampaignForm() {
+      document.getElementById('campEditId').value = '';
+      document.getElementById('campName').value = '';
+      document.getElementById('campPlatform').value = 'Whop Content Rewards';
+      document.getElementById('campCpm').value = '1.50';
+      document.getElementById('campCap').value = '100';
+      document.getElementById('campWatermark').value = '';
+      document.getElementById('campCreatorTag').value = '';
+      document.getElementById('campHashtags').value = '';
+      document.getElementById('campMaxDur').value = '45';
+      document.getElementById('campVodUrl').value = '';
+      document.getElementById('campNotes').value = '';
+    }
+
+    async function refreshCampaigns() {
+      const res = await fetch('/api/campaigns');
+      if (!res.ok) return;
+      const data = await res.json();
+      _cachedCampaigns = data.campaigns || [];
+      document.getElementById('campTotalViews').textContent = Number(data.total_views || 0).toLocaleString();
+      document.getElementById('campTotalUsd').textContent = `$${Number(data.total_est_usd || 0).toFixed(2)}`;
+      const box = document.getElementById('campaignsList');
+      if (!_cachedCampaigns.length) {
+        box.innerHTML = '<div class="small">No bounty presets yet. Add one above to track views &amp; earnings.</div>';
+        return;
+      }
+      box.innerHTML = _cachedCampaigns.map(c => {
+        const subs = c.submissions || [];
+        const subsHtml = subs.length ? subs.map(s => `
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; padding:6px 8px; background:var(--bg); border-radius:6px; margin-top:6px;">
+            <div class="small" style="flex:1; min-width:180px;">
+              <strong>[${escapeHtml(s.platform)}]</strong>
+              <a href="${escapeHtml(s.post_url)}" target="_blank" rel="noopener" style="color:var(--accent);">${escapeHtml(s.clip_label || s.post_url)}</a>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <input type="number" min="0" id="sub-views-${c.campaign_id}-${s.sub_id}" value="${s.views || 0}" style="width:105px; padding:4px 6px;" />
+              <button class="btn btn-ghost" onclick="updateSubViews('${c.campaign_id}','${s.sub_id}')">Update Views</button>
+              <span class="score-pill">$${Number(s.est_payout_usd || 0).toFixed(2)}</span>
+            </div>
+          </div>
+        `).join('') : '<div class="small" style="margin-top:6px;">No posted Shorts logged yet.</div>';
+
+        return `
+          <div class="subcard" style="margin-bottom:0;">
+            <div class="flex-between" style="flex-wrap:wrap; gap:8px;">
+              <div>
+                <strong>${escapeHtml(c.name)}</strong>
+                <span class="badge" style="margin-left:6px;">${escapeHtml(c.platform)} · $${Number(c.cpm_usd || 0).toFixed(2)} CPM</span>
+                ${Number(c.max_clip_payout_usd || 0) > 0 ? `<span class="small" style="margin-left:6px;">Cap $${c.max_clip_payout_usd}/clip</span>` : ''}
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-primary" style="margin-top:0; width:auto; padding:6px 12px; font-size:12px;" onclick="loadCampaignIntoClipper('${c.campaign_id}')">Use This Preset</button>
+                <button class="btn btn-ghost" onclick="editCampaign('${c.campaign_id}')">Edit</button>
+                <button class="btn btn-bad" onclick="deleteCampaign('${c.campaign_id}')">Delete</button>
+              </div>
+            </div>
+            <div class="small" style="margin-top:6px;">
+              Watermark: <code>${escapeHtml(c.watermark_text || 'none')}</code> ·
+              Creator: <code>${escapeHtml(c.creator_tag || 'none')}</code> ·
+              Max Length: <code>${c.target_max_duration || 45}s</code> ·
+              Hashtags: <code>${escapeHtml(c.required_hashtags || 'none')}</code>
+            </div>
+            ${c.notes ? `<div class="small" style="margin-top:4px; color:#cbd5e1;">${escapeHtml(c.notes)}</div>` : ''}
+            <div class="small" style="margin-top:6px;">
+              Total Views: <strong>${Number(c.total_views || 0).toLocaleString()}</strong> ·
+              Est. Earnings: <strong style="color:var(--ok);">$${Number(c.total_est_usd || 0).toFixed(2)}</strong>
+            </div>
+            <div style="margin-top:8px;">${subsHtml}</div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+              <select id="add-plat-${c.campaign_id}" style="flex:0 0 120px; width:auto;">
+                <option value="YouTube Shorts">YT Shorts</option>
+                <option value="TikTok">TikTok</option>
+                <option value="IG Reels">IG Reels</option>
+                <option value="Kick">Kick</option>
+              </select>
+              <input type="text" id="add-url-${c.campaign_id}" style="flex:2 1 180px; width:auto;" placeholder="Paste posted Short URL..." />
+              <input type="text" id="add-lbl-${c.campaign_id}" style="flex:1 1 120px; width:auto;" placeholder="Title (optional)" />
+              <input type="number" id="add-views-${c.campaign_id}" style="flex:0 0 95px; width:auto;" min="0" value="0" placeholder="Views" />
+              <button class="btn btn-ghost" style="flex:0 0 auto;" onclick="addSubmission('${c.campaign_id}')">+ Track Post</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function editCampaign(campaignId) {
+      const c = _cachedCampaigns.find(x => x.campaign_id === campaignId);
+      if (!c) return;
+      document.getElementById('campEditId').value = c.campaign_id;
+      document.getElementById('campName').value = c.name || '';
+      document.getElementById('campPlatform').value = c.platform || 'Whop Content Rewards';
+      document.getElementById('campCpm').value = c.cpm_usd ?? 1.5;
+      document.getElementById('campCap').value = c.max_clip_payout_usd ?? 0;
+      document.getElementById('campWatermark').value = c.watermark_text || '';
+      document.getElementById('campCreatorTag').value = c.creator_tag || '';
+      document.getElementById('campHashtags').value = c.required_hashtags || '';
+      document.getElementById('campMaxDur').value = c.target_max_duration || 45;
+      document.getElementById('campVodUrl').value = c.vod_url || '';
+      document.getElementById('campNotes').value = c.notes || '';
+      const det = document.querySelector('#panel-campaigns details');
+      if (det) det.open = true;
+    }
+
+    async function saveCampaign() {
+      const name = document.getElementById('campName').value.trim();
+      if (!name) return alert('Enter a campaign name.');
+      const payload = {
+        campaign_id: document.getElementById('campEditId').value.trim() || null,
+        name,
+        platform: document.getElementById('campPlatform').value,
+        cpm_usd: parseFloat(document.getElementById('campCpm').value || '0'),
+        max_clip_payout_usd: parseFloat(document.getElementById('campCap').value || '0'),
+        watermark_text: document.getElementById('campWatermark').value.trim(),
+        creator_tag: document.getElementById('campCreatorTag').value.trim(),
+        required_hashtags: document.getElementById('campHashtags').value.trim(),
+        target_max_duration: parseInt(document.getElementById('campMaxDur').value || '45', 10),
+        vod_url: document.getElementById('campVodUrl').value.trim(),
+        notes: document.getElementById('campNotes').value.trim(),
+      };
+      const res = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return alert('Failed to save preset');
+      clearCampaignForm();
+      refreshCampaigns();
+      showToast('Bounty preset saved!');
+    }
+
+    async function deleteCampaign(campaignId) {
+      if (!confirm('Delete this bounty preset and its logged posts?')) return;
+      await fetch(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
+      refreshCampaigns();
+      showToast('Preset deleted');
+    }
+
+    function loadCampaignIntoClipper(campaignId) {
+      const c = _cachedCampaigns.find(x => x.campaign_id === campaignId);
+      if (!c) return;
+      document.getElementById('activeCampaignId').value = c.campaign_id;
+      document.getElementById('watermarkText').value = c.watermark_text || '';
+      document.getElementById('creatorTag').value = c.creator_tag || '';
+      document.getElementById('requiredHashtags').value = c.required_hashtags || '';
+      document.getElementById('targetMaxDuration').value = c.target_max_duration || 45;
+      const banner = document.getElementById('activeCampaignBanner');
+      banner.style.display = 'block';
+      banner.textContent = `Using preset: ${c.name} ($${Number(c.cpm_usd || 0).toFixed(2)} CPM)`;
+      const bountyDet = document.getElementById('watermarkText').closest('details');
+      if (bountyDet) bountyDet.open = true;
+      if (c.vod_url) {
+        document.getElementById('youtubeUrl').value = c.vod_url;
+        setSourceTab('youtube', document.getElementById('btn-tab-youtube'));
+      }
+      showToast(`Loaded "${c.name}" into clipper!`);
+      if (window.innerWidth <= 980) mobileGoCreate();
+    }
+
+    async function addSubmission(campaignId) {
+      const postUrl = document.getElementById(`add-url-${campaignId}`).value.trim();
+      if (!postUrl) return alert('Paste the published Short URL first.');
+      const payload = {
+        platform: document.getElementById(`add-plat-${campaignId}`).value,
+        post_url: postUrl,
+        clip_label: document.getElementById(`add-lbl-${campaignId}`).value.trim(),
+        views: parseInt(document.getElementById(`add-views-${campaignId}`).value || '0', 10),
+      };
+      const res = await fetch(`/api/campaigns/${campaignId}/submissions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return alert('Failed to track post');
+      refreshCampaigns();
+      showToast('Post added to tracker!');
+    }
+
+    async function updateSubViews(campaignId, subId) {
+      const views = parseInt(document.getElementById(`sub-views-${campaignId}-${subId}`).value || '0', 10);
+      const res = await fetch(`/api/campaigns/${campaignId}/submissions/${subId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ views }),
+      });
+      if (!res.ok) return alert('Failed to update views');
+      refreshCampaigns();
+      showToast('Views & payout updated!');
+    }
+
+    function applyYoutubeStatus(yt) {
+      const box = document.getElementById('youtubeStatusBox');
+      const sb = document.getElementById('ytSidebarStatus');
+      const hb = document.getElementById('ytHeaderBadge');
+      if (yt.connected) {
+        const ch = yt.channel_title || 'YouTube';
+        if (box) box.innerHTML = `✅ Connected Channel: <strong>${escapeHtml(ch)}</strong> (<code>${escapeHtml(yt.channel_id || '')}</code>)`;
+        if (sb) { sb.textContent = `YT: ✅ ${ch}`; sb.style.color = 'var(--ok)'; }
+        if (hb) { hb.textContent = `YouTube: ✅ ${ch}`; hb.className = 'badge ok clickable'; }
+      } else if (yt.has_client) {
+        if (box) box.innerHTML = `🟡 OAuth Client saved (<code>${escapeHtml(yt.client_id_masked || 'set')}</code>). Click <strong>2. Connect YouTube Channel</strong> to sign in.`;
+        if (sb) { sb.textContent = 'YT: Click Connect →'; sb.style.color = 'var(--warn)'; }
+        if (hb) { hb.textContent = 'YouTube: Sign in →'; hb.className = 'badge warn clickable'; }
+      } else {
+        if (box) box.innerHTML = '⚪ Not configured yet. Follow the 3 steps below to connect your YouTube channel.';
+        if (sb) { sb.textContent = 'YT: Setup →'; sb.style.color = 'var(--muted)'; }
+        if (hb) { hb.textContent = 'YouTube: Setup →'; hb.className = 'badge warn clickable'; }
+      }
+    }
+
+    async function refreshYoutubeStatus() {
+      const res = await fetch('/api/youtube/status');
+      if (!res.ok) return;
+      applyYoutubeStatus(await res.json());
+    }
+
+    async function saveYoutubeConfig() {
+      const jsonText = document.getElementById('ytClientJsonInput').value.trim();
+      const cid = document.getElementById('ytClientIdInput').value.trim();
+      const csec = document.getElementById('ytClientSecretInput').value.trim();
+      const res = await fetch('/api/youtube/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_secret_json_text: jsonText,
+          client_id: cid,
+          client_secret: csec,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return alert(err.detail || 'Failed to save OAuth client');
+      }
+      document.getElementById('ytClientJsonInput').value = '';
+      document.getElementById('ytClientSecretInput').value = '';
+      await refreshYoutubeStatus();
+      showToast('OAuth Client saved! Now click Connect YouTube Channel.');
+    }
+
+    async function connectYoutube() {
+      const res = await fetch('/api/youtube/auth-url');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return alert(err.detail || 'Save OAuth client first');
+      }
+      const data = await res.json();
+      window.location.href = data.auth_url;
+    }
+
+    async function disconnectYoutube() {
+      if (!confirm('Disconnect your YouTube channel?')) return;
+      await fetch('/api/youtube/disconnect', { method: 'POST' });
+      refreshYoutubeStatus();
+      showToast('YouTube disconnected');
+    }
+
+    async function uploadClipToYoutube(jobId, clipId) {
+      const btn = document.getElementById(`yt-btn-${clipId}`);
+      const priv = document.getElementById(`yt-priv-${clipId}`).value;
+      if (btn) { btn.disabled = true; btn.textContent = 'Uploading...'; }
+      const res = await fetch(`/api/clips/${jobId}/${clipId}/upload-youtube`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privacy_status: priv }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (btn) { btn.disabled = false; btn.textContent = '🚀 Upload to YT Shorts'; }
+        return alert(err.detail || 'YouTube upload failed');
+      }
+      showToast('Uploaded to YouTube Shorts!');
+      await loadSelectedJob(jobId);
+      refreshCampaigns();
+    }
+
+    refreshHealth();
+    refreshRecentJobs();
+    refreshCampaigns();
+    refreshYoutubeStatus();
+    if (new URLSearchParams(window.location.search).get('yt_connected') === '1') {
+      showToast('YouTube channel connected!');
+      window.history.replaceState({}, '', '/');
+    }
+  </script>
+</body>
+</html>

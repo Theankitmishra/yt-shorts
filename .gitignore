@@ -1,0 +1,20 @@
+# Secrets & credentials (never commit)
+.env
+*.pem
+*.key
+client_secret*.json
+*cookies*.txt
+
+# Runtime user data & generated media
+data/
+uploads/
+work/
+outputs/
+
+# Python / OS artifacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
