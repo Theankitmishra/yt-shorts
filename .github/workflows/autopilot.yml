@@ -36,11 +36,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           cache: "pip"
+
+      - name: Set up Deno (required by yt-dlp for YouTube JS challenge solving)
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Restore clipped VOD history cache (no secrets cached)
         uses: actions/cache@v4
@@ -60,14 +65,14 @@ jobs:
           YOUTUBE_COOKIES_TXT: ${{ secrets.YOUTUBE_COOKIES_TXT }}
         run: |
           mkdir -p data/jobs data/compilations
-          pip install --quiet httpx numpy python-dotenv yt-dlp
+          pip install --quiet httpx numpy python-dotenv "yt-dlp[default]"
           python scripts/ci_autopilot.py --check-only --max-age-days 3
 
       - name: Install FFmpeg, fonts & pipeline dependencies (only when new VOD is ready)
         if: steps.check.outputs.has_work == 'true'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg nodejs libgl1 libglib2.0-0 fonts-liberation fonts-dejavu-core fonts-noto-core fonts-lohit-deva
+          sudo apt-get install -y -qq ffmpeg libgl1 libglib2.0-0 fonts-liberation fonts-dejavu-core fonts-noto-core fonts-lohit-deva
           pip install --quiet -r requirements.txt
 
       - name: Render 60fps CRF 17 Shorts (+ weekly compilation if due)

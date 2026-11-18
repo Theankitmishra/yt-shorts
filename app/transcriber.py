@@ -71,8 +71,8 @@ def probe_audio_duration(audio_path: Path) -> float:
 
 
 def _yt_dlp_base_cmd() -> list[str]:
-    """Build base yt-dlp command with ffmpeg location and optional user cookies file."""
-    cmd = ["yt-dlp", "--no-playlist", "-N", "4"]
+    """Build base yt-dlp command with ffmpeg location, JS challenge solver, and optional cookies."""
+    cmd = ["yt-dlp", "--no-playlist", "-N", "4", "--remote-components", "ejs:github"]
     ffmpeg_path = Path(FFMPEG_BIN)
     if ffmpeg_path.exists():
         cmd.extend(["--ffmpeg-location", str(ffmpeg_path.parent)])
