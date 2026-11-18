@@ -13,7 +13,7 @@ on:
       privacy:
         description: "YouTube upload privacy (private, unlisted, public)"
         required: true
-        default: "private"
+        default: "public"
       weekly_compile:
         description: "Weekly 16:9 compilation mode (auto = Sundays UTC, always, never)"
         required: true
@@ -90,15 +90,15 @@ jobs:
             --creator rakazone \
             --max-jobs "${{ github.event.inputs.max_jobs || '1' }}" \
             --max-age-days 3 \
-            --privacy "${{ github.event.inputs.privacy || 'private' }}" \
+            --privacy "${{ github.event.inputs.privacy || 'public' }}" \
             --weekly-compile "${{ github.event.inputs.weekly_compile || 'auto' }}" \
             $AUTO_UP_FLAG
 
-      - name: Upload rendered MP4s as downloadable workflow artifacts (7 days)
+      - name: Upload rendered MP4s as downloadable workflow artifacts (1 day)
         if: steps.check.outputs.has_work == 'true' && always()
         uses: actions/upload-artifact@v4
         with:
           name: rakazone-shorts-${{ github.run_number }}
           path: outputs/**/*.mp4
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1

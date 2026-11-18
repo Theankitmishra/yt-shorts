@@ -146,7 +146,7 @@ def main() -> int:
     parser.add_argument("--min-duration-sec", type=int, default=900, help="Skip videos shorter than N sec.")
     parser.add_argument("--max-age-days", type=int, default=7, help="Only consider VODs from last N days.")
     parser.add_argument("--auto-upload", action="store_true", help="Auto-upload rendered Shorts to YouTube.")
-    parser.add_argument("--privacy", default="private", choices=["private", "unlisted", "public"])
+    parser.add_argument("--privacy", default="public", choices=["private", "unlisted", "public"])
     parser.add_argument("--weekly-compile", default="auto", choices=["auto", "always", "never"])
     parser.add_argument("--check-only", action="store_true", help="Only scan feeds and report whether VOD work exists.")
     args = parser.parse_args()
