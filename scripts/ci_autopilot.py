@@ -221,6 +221,10 @@ def main() -> int:
             "subtitle_language": "auto",
             "subtitle_script": "roman",
             "watermark_text": str(creator.get("watermark_text") or "").strip()[:48],
+            "channel_watermark": str(
+                creator.get("channel_watermark")
+                or ("@RAKAGTAVI" if creator.get("creator_id") == "rakazone" else "")
+            ).strip()[:48],
             "creator_tag": str(creator.get("creator_tag") or "").strip()[:48],
             "required_hashtags": str(creator.get("required_hashtags") or "").strip()[:140],
             "target_max_duration": max(15, min(60, int(creator.get("target_max_duration") or 45))),
@@ -257,6 +261,7 @@ def main() -> int:
                 "job_ids": recent_jids,
                 "max_clips": 10,
                 "watermark_text": str(c0.get("watermark_text") or "Credit: @RakaZoneGaming"),
+                "channel_watermark": str(c0.get("channel_watermark") or "@RAKAGTAVI"),
                 "creator_tag": str(c0.get("creator_tag") or "@RakaZoneGaming"),
                 "required_hashtags": str(c0.get("required_hashtags") or "#RakaZoneGaming #GTA6 #Gaming"),
                 "vfx_enabled": True,

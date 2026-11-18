@@ -41,6 +41,7 @@ def _default_monitor_state() -> dict[str, Any]:
                 "kick_url": "https://kick.com/rakazone",
                 "creator_tag": "@RakaZoneGaming",
                 "watermark_text": "Credit: @RakaZoneGaming",
+                "channel_watermark": "@RAKAGTAVI",
                 "required_hashtags": "#RakaZoneGaming #GTA6 #GTA #Gaming #Shorts",
                 "default_clips": 6,
                 "target_max_duration": 45,
@@ -59,6 +60,13 @@ def load_monitor_state() -> dict[str, Any]:
         try:
             data = json.loads(MONITOR_PATH.read_text(encoding="utf-8"))
             if isinstance(data, dict) and isinstance(data.get("creators"), list):
+                changed = False
+                for c in data["creators"]:
+                    if c.get("creator_id") == "rakazone" and not str(c.get("channel_watermark") or "").strip():
+                        c["channel_watermark"] = "@RAKAGTAVI"
+                        changed = True
+                if changed:
+                    save_monitor_state(data)
                 return data
         except Exception:
             pass
@@ -342,6 +350,10 @@ def upsert_creator(payload: dict[str, Any]) -> dict[str, Any]:
         "kick_url": str(payload.get("kick_url") or "").strip(),
         "creator_tag": str(payload.get("creator_tag") or "").strip()[:48],
         "watermark_text": str(payload.get("watermark_text") or "").strip()[:48],
+        "channel_watermark": str(
+            payload.get("channel_watermark")
+            or (existing.get("channel_watermark", "") if existing else ("@RAKAGTAVI" if cid == "rakazone" else ""))
+        ).strip()[:48],
         "required_hashtags": str(payload.get("required_hashtags") or "").strip()[:140],
         "default_clips": max(1, min(10, int(payload.get("default_clips") or 6))),
         "target_max_duration": max(15, min(60, int(payload.get("target_max_duration") or 45))),

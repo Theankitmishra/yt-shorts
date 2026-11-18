@@ -113,6 +113,7 @@ Style: SubTitle, {font_name}, 36, &H00BFD42D, &H00FFFFFF, &H00140E0B, &H80000000
 Style: RankNum, {font_name}, 118, &H0000D7FF, &H00FFFFFF, &H00140E0B, &H90000000, 1, 0, 0, 0, 100, 100, 0, 0, 1, 4, 2, 5, 100, 100, 40, 1
 Style: Caption16x9, {font_name}, 54, &H00FFFFFF, &H0000D7FF, &H000A0A0A, &H85000000, 1, 0, 0, 0, 100, 100, 0, 0, 1, 4, 2, 2, 110, 110, 62, 1
 Style: CornerBadge, {font_name}, 30, &H00FFFFFF, &H00FFFFFF, &H00140E0B, &HA0000000, 1, 0, 0, 0, 100, 100, 0, 0, 3, 10, 0, 9, 40, 42, 34, 1
+Style: BrandCorner16x9, {font_name}, 28, &H2200D7FF, &H00FFFFFF, &H00140E0B, &HA0000000, 1, 0, 0, 0, 100, 100, 0, 0, 3, 10, 0, 1, 42, 42, 30, 1
 Style: ColdBadge, {font_name}, 38, &H000A0E14, &H000A0E14, &H0000D7FF, &H0000D7FF, 1, 0, 0, 0, 100, 100, 0, 0, 3, 14, 0, 7, 48, 48, 42, 1
 
 [Events]
@@ -260,9 +261,14 @@ def _build_16x9_clip_ass(
     text_preview: str,
     watermark_text: str,
     rank_label: str = "",
+    channel_watermark: str = "",
 ) -> Path:
     font = _pick_caption_font(needs_devanagari=False)
     lines: list[str] = []
+    if channel_watermark.strip():
+        lines.append(
+            f"Dialogue: 2,0:00:00.00,{_format_ass_time(duration_s)},BrandCorner16x9,,0,0,0,,{_escape_ass_text(channel_watermark.strip())}"
+        )
     if watermark_text.strip():
         lines.append(
             f"Dialogue: 2,0:00:00.00,{_format_ass_time(duration_s)},CornerBadge,,0,0,0,,{_escape_ass_text(watermark_text.strip())}"
@@ -301,9 +307,17 @@ def _render_clip_segment_16x9(
     work_dir: Path,
     tag: str,
     rank_badge: str = "",
+    channel_watermark: str = "",
 ) -> float:
     dur = max(2.0, float(dur_s))
-    ass_fp = _build_16x9_clip_ass(work_dir / f"{tag}.ass", dur, text_preview, watermark_text, rank_label=rank_badge)
+    ass_fp = _build_16x9_clip_ass(
+        work_dir / f"{tag}.ass",
+        dur,
+        text_preview,
+        watermark_text,
+        rank_label=rank_badge,
+        channel_watermark=channel_watermark,
+    )
     ass_part = f",ass='{_escape_ffmpeg_filter_path(ass_fp)}'" if _ffmpeg_has_ass_filter() else ""
     meta = probe_video(src_path)
     has_audio = bool(meta.get("has_audio", True))
@@ -365,6 +379,7 @@ def build_weekly_compilation(
     work_dir: Path,
     max_clips: int = 8,
     watermark_text: str = "Credit: @RakaZoneGaming",
+    channel_watermark: str = "@RAKAGTAVI",
     creator_tag: str = "@RakaZoneGaming",
     required_hashtags: str = "#RakaZoneGaming #GTA6 #Gaming",
     vfx_enabled: bool = True,
@@ -411,6 +426,7 @@ def build_weekly_compilation(
         work_dir=work_dir,
         tag="cold",
         rank_badge="COMING UP...",
+        channel_watermark=channel_watermark,
     )
     seg_files.append(cold_mp4)
     chapters.append({"time": _fmt_chapter_ts(cur_t), "label": "Cold Open"})
@@ -492,6 +508,7 @@ def build_weekly_compilation(
             work_dir=work_dir,
             tag=f"clip_{idx:02d}",
             rank_badge=f"#{rank}" if rank <= 3 else "",
+            channel_watermark=channel_watermark,
         )
         seg_files.append(clip_mp4)
         cur_t += actual_clip

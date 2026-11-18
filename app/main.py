@@ -259,6 +259,7 @@ def _process_job(job_id: str) -> None:
 
             rendered_clips: list[dict[str, Any]] = []
             watermark_text = str(job.get("watermark_text") or "").strip()
+            channel_watermark = str(job.get("channel_watermark") or "").strip()
             creator_tag = str(job.get("creator_tag") or "").strip()
             req_tags = str(job.get("required_hashtags") or "").strip()
             max_dur = int(job.get("target_max_duration") or 55)
@@ -269,6 +270,8 @@ def _process_job(job_id: str) -> None:
                 clip["end"] = round(min(s_info["slice_end"], clip["start"] + max_dur, float(clip["end"])), 2)
                 if watermark_text:
                     clip["watermark_text"] = watermark_text
+                if channel_watermark:
+                    clip["channel_watermark"] = channel_watermark
 
                 clip_segments = segments
                 if burn_captions:
@@ -389,6 +392,7 @@ def _process_job(job_id: str) -> None:
 
             rendered_clips = []
             watermark_text = str(job.get("watermark_text") or "").strip()
+            channel_watermark = str(job.get("channel_watermark") or "").strip()
             creator_tag = str(job.get("creator_tag") or "").strip()
             req_tags = str(job.get("required_hashtags") or "").strip()
             max_dur = int(job.get("target_max_duration") or 55)
@@ -396,6 +400,8 @@ def _process_job(job_id: str) -> None:
                 clip["end"] = round(min(float(clip["end"]), float(clip["start"]) + max_dur), 2)
                 if watermark_text:
                     clip["watermark_text"] = watermark_text
+                if channel_watermark:
+                    clip["channel_watermark"] = channel_watermark
                 clip_segments = segments
                 if burn_captions:
                     log(f"Precision subtitle pass on {clip['clip_id']} ({sub_lang}/{sub_script})...")
@@ -643,6 +649,7 @@ async def create_job(
     subtitle_language: str = Form(default="auto"),
     subtitle_script: str = Form(default="roman"),
     watermark_text: str = Form(default=""),
+    channel_watermark: str = Form(default=""),
     creator_tag: str = Form(default=""),
     required_hashtags: str = Form(default=""),
     target_max_duration: int = Form(default=55),
@@ -693,6 +700,7 @@ async def create_job(
         "subtitle_language": subtitle_language,
         "subtitle_script": subtitle_script,
         "watermark_text": watermark_text.strip()[:48],
+        "channel_watermark": channel_watermark.strip()[:48],
         "creator_tag": creator_tag.strip()[:48],
         "required_hashtags": required_hashtags.strip()[:140],
         "target_max_duration": max(15, min(60, int(target_max_duration))),
@@ -1200,6 +1208,7 @@ def _compilation_worker(comp_id: str) -> None:
             work_dir=work_dir,
             max_clips=int(comp.get("max_clips", 8)),
             watermark_text=str(comp.get("watermark_text") or ""),
+            channel_watermark=str(comp.get("channel_watermark") or "@RAKAGTAVI"),
             creator_tag=str(comp.get("creator_tag") or ""),
             required_hashtags=str(comp.get("required_hashtags") or ""),
             vfx_enabled=bool(comp.get("vfx_enabled", True)),
@@ -1244,6 +1253,7 @@ async def api_create_compilation(
     job_ids: str = Form(default=""),
     max_clips: int = Form(default=8),
     watermark_text: str = Form(default="Credit: @RakaZoneGaming"),
+    channel_watermark: str = Form(default="@RAKAGTAVI"),
     creator_tag: str = Form(default="@RakaZoneGaming"),
     required_hashtags: str = Form(default="#RakaZoneGaming #GTA6 #GTA #Gaming"),
     vfx_enabled: bool = Form(default=True),
@@ -1281,6 +1291,7 @@ async def api_create_compilation(
         "job_ids": selected_ids,
         "max_clips": max(2, min(15, int(max_clips))),
         "watermark_text": watermark_text.strip()[:48],
+        "channel_watermark": channel_watermark.strip()[:48],
         "creator_tag": creator_tag.strip()[:48],
         "required_hashtags": required_hashtags.strip()[:160],
         "vfx_enabled": bool(vfx_enabled),
@@ -1325,6 +1336,7 @@ class MonitorCreatorBody(BaseModel):
     kick_url: str = ""
     creator_tag: str = ""
     watermark_text: str = ""
+    channel_watermark: str = ""
     required_hashtags: str = ""
     default_clips: int = 6
     target_max_duration: int = 45
@@ -1395,6 +1407,10 @@ def _submit_monitor_clip_job(
         "subtitle_language": "auto",
         "subtitle_script": "roman",
         "watermark_text": str(creator.get("watermark_text") or "").strip()[:48],
+        "channel_watermark": str(
+            creator.get("channel_watermark")
+            or ("@RAKAGTAVI" if creator.get("creator_id") == "rakazone" else "")
+        ).strip()[:48],
         "creator_tag": str(creator.get("creator_tag") or "").strip()[:48],
         "required_hashtags": str(creator.get("required_hashtags") or "").strip()[:140],
         "target_max_duration": max(15, min(60, int(creator.get("target_max_duration") or 45))),

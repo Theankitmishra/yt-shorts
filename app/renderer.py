@@ -59,10 +59,11 @@ def generate_ass_subtitles(
     ass_path: Path,
     burn_hook_banner: bool = True,
     watermark_text: str = "",
+    channel_watermark: str = "",
     burn_captions: bool = True,
 ) -> Path:
-    """Create a 1080x1920 ASS subtitle file with karaoke word highlighting, hook banner & optional bounty watermark."""
-    all_text = hook_title + " " + watermark_text + " " + " ".join(str(s.get("text", "")) for s in segments)
+    """Create a 1080x1920 ASS subtitle file with karaoke word highlighting, hook banner & dual corner watermarks."""
+    all_text = hook_title + " " + watermark_text + " " + channel_watermark + " " + " ".join(str(s.get("text", "")) for s in segments)
     needs_devanagari = any("\u0900" <= ch <= "\u097f" for ch in all_text)
     font_name = _pick_caption_font(needs_devanagari=needs_devanagari)
 
@@ -78,11 +79,18 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Caption,{font_name},68,&H00FFFFFF,&H0000FFFF,&H00111111,&H90000000,-1,0,0,0,100,100,0,0,1,4,2,2,80,80,310,1
 Style: HookBanner,{font_name},54,&H00111111,&H000000FF,&H0000E5FF,&H0000E5FF,-1,0,0,0,100,100,0,0,3,18,0,8,90,90,170,1
 Style: Watermark,{font_name},30,&H44FFFFFF,&H000000FF,&H77111111,&H00000000,-1,0,0,0,100,100,0,0,1,2,1,9,45,45,62,1
+Style: BrandWatermark,{font_name},32,&H2800E5FF,&H000000FF,&H66111111,&H00000000,-1,0,0,0,100,100,0,0,1,3,1,7,45,45,62,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events: list[str] = []
+
+    if channel_watermark.strip():
+        clip_dur = max(1.0, clip_end - clip_start)
+        events.append(
+            f"Dialogue: 2,{_format_ass_time(0.0)},{_format_ass_time(clip_dur)},BrandWatermark,,0,0,0,,{_escape_ass_text(channel_watermark.strip())}"
+        )
 
     if watermark_text.strip():
         clip_dur = max(1.0, clip_end - clip_start)
@@ -268,7 +276,8 @@ def render_short_clip(
     layout = clip.get("layout", "blurred_bg_fit")
 
     watermark_text = str(clip.get("watermark_text") or "").strip()
-    use_ass = (burn_captions or bool(watermark_text)) and _ffmpeg_has_ass_filter()
+    channel_watermark = str(clip.get("channel_watermark") or "").strip()
+    use_ass = (burn_captions or bool(watermark_text) or bool(channel_watermark)) and _ffmpeg_has_ass_filter()
     ass_path = work_dir / f"{clip['clip_id']}.ass"
     if use_ass:
         generate_ass_subtitles(
@@ -279,6 +288,7 @@ def render_short_clip(
             ass_path=ass_path,
             burn_hook_banner=burn_captions,
             watermark_text=watermark_text,
+            channel_watermark=channel_watermark,
             burn_captions=burn_captions,
         )
 
