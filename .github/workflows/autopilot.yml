@@ -1,0 +1,99 @@
+name: RakaZone Auto-Pilot (VOD Shorts + Weekly Compilation)
+
+on:
+  schedule:
+    # Twice daily (07:00 & 19:00 UTC = 12:30 PM & 12:30 AM IST) — skips active live streams
+    - cron: "0 7,19 * * *"
+  workflow_dispatch:
+    inputs:
+      auto_upload:
+        description: "Auto-upload rendered Shorts to YouTube (requires YOUTUBE_OAUTH_JSON secret)"
+        required: true
+        default: "true"
+      privacy:
+        description: "YouTube upload privacy (private, unlisted, public)"
+        required: true
+        default: "private"
+      weekly_compile:
+        description: "Weekly 16:9 compilation mode (auto = Sundays UTC, always, never)"
+        required: true
+        default: "auto"
+      max_jobs:
+        description: "Max finished VODs to process per run"
+        required: true
+        default: "1"
+
+concurrency:
+  group: rakazone-autopilot
+  cancel-in-progress: false
+
+jobs:
+  autopilot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Restore clipped VOD history cache (no secrets cached)
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/monitor.json
+            data/jobs
+            data/compilations
+            data/rsi_memory.json
+          key: autopilot-state-${{ github.run_id }}
+          restore-keys: |
+            autopilot-state-
+
+      - name: Fast feed check (VOD-only, saves GitHub Actions minutes)
+        id: check
+        env:
+          YOUTUBE_COOKIES_TXT: ${{ secrets.YOUTUBE_COOKIES_TXT }}
+        run: |
+          mkdir -p data/jobs data/compilations
+          pip install --quiet httpx numpy python-dotenv yt-dlp
+          python scripts/ci_autopilot.py --check-only --max-age-days 3
+
+      - name: Install FFmpeg, fonts & pipeline dependencies (only when new VOD is ready)
+        if: steps.check.outputs.has_work == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg nodejs libgl1 libglib2.0-0 fonts-liberation fonts-dejavu-core fonts-noto-core fonts-lohit-deva
+          pip install --quiet -r requirements.txt
+
+      - name: Render 60fps CRF 17 Shorts (+ weekly compilation if due)
+        if: steps.check.outputs.has_work == 'true'
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          YOUTUBE_OAUTH_JSON: ${{ secrets.YOUTUBE_OAUTH_JSON }}
+          YOUTUBE_COOKIES_TXT: ${{ secrets.YOUTUBE_COOKIES_TXT }}
+        run: |
+          AUTO_UP_FLAG=""
+          if [[ "${{ github.event.inputs.auto_upload || 'true' }}" == "true" ]]; then
+            AUTO_UP_FLAG="--auto-upload"
+          fi
+          python scripts/ci_autopilot.py \
+            --creator rakazone \
+            --max-jobs "${{ github.event.inputs.max_jobs || '1' }}" \
+            --max-age-days 3 \
+            --privacy "${{ github.event.inputs.privacy || 'private' }}" \
+            --weekly-compile "${{ github.event.inputs.weekly_compile || 'auto' }}" \
+            $AUTO_UP_FLAG
+
+      - name: Upload rendered MP4s as downloadable workflow artifacts (7 days)
+        if: steps.check.outputs.has_work == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rakazone-shorts-${{ github.run_number }}
+          path: outputs/**/*.mp4
+          if-no-files-found: ignore
+          retention-days: 7

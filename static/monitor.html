@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0e14" />
+  <title>Creator Stream Tracker — Isolated Feed</title>
+  <style>
+    :root {
+      --bg: #0b0e14;
+      --surface: #131822;
+      --surface-2: #1a2130;
+      --border: #283247;
+      --text: #eef2f9;
+      --muted: #9aa8bf;
+      --accent: #6c8cff;
+      --accent-2: #2dd4bf;
+      --warn: #fbbf24;
+      --danger: #f87171;
+      --ok: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 22px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(19, 24, 34, 0.96);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; flex-wrap: wrap; }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 20px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 14px;
+      border-radius: 9px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--accent); color: #081020; }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-live { background: rgba(248, 113, 113, 0.22); color: #fecaca; border-color: rgba(248, 113, 113, 0.55); }
+    .btn-ghost { background: var(--surface-2); color: var(--text); border-color: var(--border); padding: 7px 11px; font-size: 12px; }
+    .badge {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(45, 212, 191, 0.14);
+      color: var(--accent-2);
+      border: 1px solid rgba(45, 212, 191, 0.35);
+      font-weight: 600;
+    }
+    .badge.ok { background: rgba(52, 211, 153, 0.14); color: var(--ok); border-color: rgba(52, 211, 153, 0.4); }
+    .badge.warn { background: rgba(251, 191, 36, 0.14); color: var(--warn); border-color: rgba(251, 191, 36, 0.4); }
+    .badge.live { background: rgba(248, 113, 113, 0.2); color: #fca5a5; border-color: rgba(248, 113, 113, 0.55); }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .tab-btn {
+      padding: 7px 12px;
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tab-btn.active { background: rgba(108, 140, 255, 0.2); color: var(--text); border-color: var(--accent); }
+    input, select {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      width: 100%;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; margin-top: 8px; }
+    .small { font-size: 12px; color: var(--muted); }
+    .stream-row {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .stream-row.live-card { border-color: rgba(248, 113, 113, 0.55); }
+    .stream-row.clipped-card { border-color: rgba(52, 211, 153, 0.35); }
+    .flex { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #1d2638;
+      color: var(--text);
+      border: 1px solid var(--accent-2);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 99;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s ease;
+    }
+    .toast.show { opacity: 1; }
+    @media (max-width: 640px) {
+      .wrap { padding: 12px; }
+      header { position: static; padding: 12px 14px; }
+      input, select { font-size: 16px; min-height: 42px; }
+      .btn { min-height: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span>📡 Creator Stream Tracker</span>
+      <select id="creatorSelect" style="width:auto; min-width:190px;" onchange="renderActiveCreator()"></select>
+    </div>
+    <div class="flex">
+      <a class="btn btn-ghost" href="/">🎬 Open Full Studio</a>
+      <a class="btn btn-ghost" href="/?tab=compilations">🎞️ Weekly Compilations</a>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="flex" style="justify-content:space-between;">
+        <div class="flex">
+          <span class="badge live" id="statLive">🔴 Live: 0</span>
+          <span class="badge warn" id="statPending">🟡 Needs Clipping: 0</span>
+          <span class="badge ok" id="statClipped">✅ Already Clipped: 0</span>
+          <span class="small" id="lastScannedLabel">Never scanned yet</span>
+        </div>
+        <div class="flex">
+          <label style="display:flex; align-items:center; gap:6px; margin:0; color:var(--text); cursor:pointer;">
+            <input type="checkbox" id="monAutoUpload" style="width:auto;" />
+            Auto-upload to YT
+          </label>
+          <select id="monPrivacy" style="width:auto;">
+            <option value="private">Private</option>
+            <option value="unlisted">Unlisted</option>
+            <option value="public">Public</option>
+          </select>
+          <button id="scanBtn" class="btn btn-primary" onclick="scanNow()">🔄 Scan YouTube + Kick Now</button>
+        </div>
+      </div>
+
+      <details style="margin-top:12px;">
+        <summary class="small" style="cursor:pointer; font-weight:600; color:var(--accent-2);">⚙️ Edit Tracked Channels &amp; Credit Rules (or Add Creator)</summary>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:10px; margin-top:8px;">
+          <div><label>Creator Name</label><input type="text" id="cfgName" /></div>
+          <div><label>YouTube Channel URL</label><input type="text" id="cfgYt" /></div>
+          <div><label>Kick Channel URL</label><input type="text" id="cfgKick" /></div>
+          <div><label>Creator @Tag</label><input type="text" id="cfgTag" /></div>
+          <div><label>Credit Watermark</label><input type="text" id="cfgWm" /></div>
+          <div><label>Default Shorts / Stream</label><input type="number" id="cfgClips" min="1" max="10" value="6" /></div>
+        </div>
+        <label>Default Hashtags</label>
+        <input type="text" id="cfgTags" />
+        <div class="flex" style="margin-top:10px;">
+          <button class="btn btn-primary" onclick="saveCreatorConfig(false)">Save Channel Settings</button>
+          <button class="btn btn-ghost" onclick="saveCreatorConfig(true)">+ Save as New Creator</button>
+        </div>
+      </details>
+
+      <details style="margin-top:10px;">
+        <summary class="small" style="cursor:pointer; font-weight:600; color:var(--warn);">🤖 Auto-Pilot Mode (Auto-Scan, Auto-Clip &amp; Auto-Upload While Running)</summary>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-top:8px; align-items:end;">
+          <label style="display:flex; align-items:center; gap:8px; margin:0; color:var(--text); cursor:pointer;">
+            <input type="checkbox" id="apEnabled" style="width:auto;" />
+            Enable Hands-Free Auto-Pilot
+          </label>
+          <div>
+            <label>Check Every</label>
+            <select id="apInterval">
+              <option value="30">30 minutes</option>
+              <option value="60" selected>60 minutes</option>
+              <option value="180">3 hours</option>
+            </select>
+          </div>
+          <div>
+            <label>Max Streams / Day</label>
+            <input type="number" id="apMaxDay" min="1" max="6" value="2" />
+          </div>
+          <div>
+            <label>Auto-Upload Privacy</label>
+            <select id="apPrivacy">
+              <option value="private">Private</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex" style="margin-top:8px;">
+          <label style="display:flex; align-items:center; gap:6px; margin:0; color:var(--text); cursor:pointer;">
+            <input type="checkbox" id="apAutoYt" style="width:auto;" />
+            Auto-upload finished Shorts to YouTube
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; margin:0; color:var(--text); cursor:pointer;">
+            <input type="checkbox" id="apOnlyVod" checked style="width:auto;" />
+            Wait until Live finishes before clipping full 6 Shorts
+          </label>
+        </div>
+        <div class="flex" style="margin-top:10px; justify-content:space-between;">
+          <div class="flex">
+            <button class="btn btn-primary" onclick="saveAutopilot()">Save Auto-Pilot</button>
+            <button id="apRunBtn" class="btn btn-ghost" onclick="runAutopilotNow()">Run Check Now</button>
+          </div>
+          <span id="apStatusText" class="small">Auto-Pilot OFF</span>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="setFilter('all', this)">All Streams &amp; Videos</button>
+        <button class="tab-btn" onclick="setFilter('pending', this)">🟡 Needs Clipping</button>
+        <button class="tab-btn" onclick="setFilter('live', this)">🔴 Live Now</button>
+        <button class="tab-btn" onclick="setFilter('clipped', this)">✅ Already Clipped</button>
+        <button class="tab-btn" onclick="setFilter('youtube', this)">YouTube Only</button>
+        <button class="tab-btn" onclick="setFilter('kick', this)">Kick Only</button>
+      </div>
+      <div id="feedList" style="display:flex; flex-direction:column; gap:10px;"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    let snapshot = { creators: [] };
+    let currentFilter = 'all';
+    let pollHandle = null;
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(el._t);
+      el._t = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]
+      ));
+    }
+
+    function fmtDur(sec, isLive) {
+      if (isLive) return '🔴 LIVE NOW';
+      if (!sec || sec <= 0) return 'Video';
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
+
+    function activeCreator() {
+      const cid = document.getElementById('creatorSelect').value;
+      return (snapshot.creators || []).find(c => c.creator_id === cid) || (snapshot.creators || [])[0] || null;
+    }
+
+    function setFilter(f, btn) {
+      currentFilter = f;
+      btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderFeed();
+    }
+
+    async function loadSnapshot() {
+      const res = await fetch('/api/monitor');
+      if (!res.ok) return;
+      snapshot = await res.json();
+      const sel = document.getElementById('creatorSelect');
+      const prev = sel.value;
+      sel.innerHTML = (snapshot.creators || []).map(c =>
+        `<option value="${escapeHtml(c.creator_id)}">${escapeHtml(c.name)}</option>`
+      ).join('');
+      if (prev && (snapshot.creators || []).some(c => c.creator_id === prev)) sel.value = prev;
+      renderActiveCreator();
+    }
+
+    function renderActiveCreator() {
+      const ap = snapshot.autopilot || {};
+      document.getElementById('apEnabled').checked = !!ap.enabled;
+      document.getElementById('apInterval').value = String(ap.interval_minutes || 60);
+      document.getElementById('apMaxDay').value = ap.max_jobs_per_day || 2;
+      document.getElementById('apPrivacy').value = ap.youtube_privacy || 'private';
+      document.getElementById('apAutoYt').checked = !!ap.auto_upload_youtube;
+      document.getElementById('apOnlyVod').checked = ap.only_finished_vods !== false;
+      document.getElementById('apStatusText').textContent =
+        `${ap.enabled ? '🟢 Auto-Pilot ON' : '⚪ Auto-Pilot OFF'} · ${ap.last_action || ''}`;
+
+      const c = activeCreator();
+      if (!c) return;
+      document.getElementById('cfgName').value = c.name || '';
+      document.getElementById('cfgYt').value = c.youtube_url || '';
+      document.getElementById('cfgKick').value = c.kick_url || '';
+      document.getElementById('cfgTag').value = c.creator_tag || '';
+      document.getElementById('cfgWm').value = c.watermark_text || '';
+      document.getElementById('cfgClips').value = c.default_clips || 6;
+      document.getElementById('cfgTags').value = c.required_hashtags || '';
+      document.getElementById('lastScannedLabel').textContent = c.last_scanned_at
+        ? `Last scanned: ${c.last_scanned_at.replace('T', ' ').slice(0, 16)} UTC`
+        : 'Click "Scan YouTube + Kick Now" to load streams';
+      renderFeed();
+    }
+
+    function renderFeed() {
+      const c = activeCreator();
+      const items = (c && c.items) ? c.items : [];
+      const liveCnt = items.filter(x => x.is_live).length;
+      const clippedCnt = items.filter(x => x.clip_status === 'clipped').length;
+      const pendingCnt = items.filter(x => x.clip_status === 'pending').length;
+
+      document.getElementById('statLive').textContent = `🔴 Live: ${liveCnt}`;
+      document.getElementById('statPending').textContent = `🟡 Needs Clipping: ${pendingCnt}`;
+      document.getElementById('statClipped').textContent = `✅ Already Clipped: ${clippedCnt}`;
+
+      const filtered = items.filter(x => {
+        if (currentFilter === 'pending') return x.clip_status === 'pending';
+        if (currentFilter === 'clipped') return x.clip_status === 'clipped';
+        if (currentFilter === 'live') return !!x.is_live;
+        if (currentFilter === 'youtube') return x.platform === 'YouTube';
+        if (currentFilter === 'kick') return x.platform === 'Kick';
+        return true;
+      });
+
+      const list = document.getElementById('feedList');
+      if (!filtered.length) {
+        list.innerHTML = '<div class="small" style="padding:18px; text-align:center;">No matching streams here yet. Click <strong>🔄 Scan YouTube + Kick Now</strong> above.</div>';
+        return;
+      }
+
+      let anyRunning = false;
+      list.innerHTML = filtered.map(it => {
+        if (it.clip_status === 'running') anyRunning = true;
+        const rowCls = it.is_live ? 'live-card' : (it.clip_status === 'clipped' ? 'clipped-card' : '');
+        const platBadge = it.platform === 'YouTube' ? '📺 YouTube' : '🟢 Kick';
+        const statusBadge = it.clip_status === 'clipped'
+          ? `<span class="badge ok">✅ Clipped${it.clipped_count ? ` (${it.clipped_count} Shorts)` : ''}</span>`
+          : (it.clip_status === 'running'
+              ? '<span class="badge">⏳ Clipping now...</span>'
+              : '<span class="badge warn">🟡 Not Clipped Yet</span>');
+
+        const actionBtn = it.clip_status === 'running'
+          ? `<a class="btn btn-ghost" href="/?job=${escapeHtml(it.job_id)}">Watch Progress ↗</a>`
+          : (it.is_live
+              ? `<button class="btn btn-live" onclick="clipNow('${escapeHtml(it.url)}','${escapeHtml(it.title)}')">🔴 Clip 10m Live Now</button>`
+              : `<button class="btn btn-primary" onclick="clipNow('${escapeHtml(it.url)}','${escapeHtml(it.title)}')">✂️ Clip ${c.default_clips || 6} Shorts</button>`);
+
+        const viewLink = (it.clip_status === 'clipped' && it.job_id)
+          ? `<a class="btn btn-ghost" href="/?job=${escapeHtml(it.job_id)}">View Shorts ↗</a>`
+          : '';
+
+        const markBtn = it.clip_status === 'clipped'
+          ? `<button class="btn btn-ghost" onclick="toggleClipped('${escapeHtml(it.url)}', false)">Mark Unclipped</button>`
+          : `<button class="btn btn-ghost" onclick="toggleClipped('${escapeHtml(it.url)}', true)">Mark Done</button>`;
+
+        return `
+          <div class="stream-row ${rowCls}">
+            <div style="flex:1; min-width:250px;">
+              <div class="flex" style="margin-bottom:5px;">
+                <span class="badge">${platBadge}</span>
+                ${it.is_live ? '<span class="badge live">🔴 LIVE NOW</span>' : `<span class="small">📅 ${escapeHtml(it.date || 'Recent')}</span>`}
+                <span class="small">⏱ ${fmtDur(it.duration_sec, it.is_live)}</span>
+                ${statusBadge}
+              </div>
+              <div style="font-weight:700; font-size:14px;">${escapeHtml(it.title)}</div>
+              <div class="small" style="margin-top:2px;">
+                <a href="${escapeHtml(it.url)}" target="_blank" rel="noopener" style="color:var(--accent);">${escapeHtml(it.url)}</a>
+              </div>
+            </div>
+            <div class="flex">
+              ${viewLink}
+              ${actionBtn}
+              ${markBtn}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      if (anyRunning && !pollHandle) {
+        pollHandle = setInterval(loadSnapshot, 3500);
+      } else if (!anyRunning && pollHandle) {
+        clearInterval(pollHandle);
+        pollHandle = null;
+      }
+    }
+
+    async function scanNow() {
+      const c = activeCreator();
+      if (!c) return;
+      const btn = document.getElementById('scanBtn');
+      btn.disabled = true;
+      btn.textContent = 'Scanning YT + Kick...';
+      try {
+        const res = await fetch(`/api/monitor/${c.creator_id}/scan`, { method: 'POST' });
+        if (!res.ok) throw new Error('Scan failed');
+        snapshot = await res.json();
+        renderActiveCreator();
+        showToast('Updated latest streams & VOD dates!');
+      } catch (e) {
+        alert(e.message || 'Scan failed');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 Scan YouTube + Kick Now';
+      }
+    }
+
+    async function saveCreatorConfig(asNew) {
+      const c = activeCreator();
+      const payload = {
+        creator_id: asNew ? '' : (c ? c.creator_id : ''),
+        name: document.getElementById('cfgName').value.trim(),
+        youtube_url: document.getElementById('cfgYt').value.trim(),
+        kick_url: document.getElementById('cfgKick').value.trim(),
+        creator_tag: document.getElementById('cfgTag').value.trim(),
+        watermark_text: document.getElementById('cfgWm').value.trim(),
+        required_hashtags: document.getElementById('cfgTags').value.trim(),
+        default_clips: parseInt(document.getElementById('cfgClips').value || '6', 10),
+      };
+      const res = await fetch('/api/monitor/creators', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return alert('Failed to save channel settings');
+      snapshot = await res.json();
+      loadSnapshot();
+      showToast('Channel tracker settings saved!');
+    }
+
+    async function toggleClipped(url, clipped) {
+      const c = activeCreator();
+      if (!c) return;
+      const res = await fetch(`/api/monitor/${c.creator_id}/toggle-clipped`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, clipped }),
+      });
+      if (!res.ok) return;
+      snapshot = await res.json();
+      renderFeed();
+    }
+
+    async function clipNow(url, title) {
+      const c = activeCreator();
+      if (!c) return;
+      const res = await fetch(`/api/monitor/${c.creator_id}/clip-now`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          title,
+          auto_upload_youtube: document.getElementById('monAutoUpload').checked,
+          youtube_privacy: document.getElementById('monPrivacy').value,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return alert(err.detail || 'Could not start clip job');
+      }
+      const data = await res.json();
+      showToast(`Started clipping job ${data.job.job_id}!`);
+      loadSnapshot();
+    }
+
+    async function saveAutopilot() {
+      const payload = {
+        enabled: document.getElementById('apEnabled').checked,
+        interval_minutes: parseInt(document.getElementById('apInterval').value || '60', 10),
+        max_jobs_per_day: parseInt(document.getElementById('apMaxDay').value || '2', 10),
+        youtube_privacy: document.getElementById('apPrivacy').value,
+        auto_upload_youtube: document.getElementById('apAutoYt').checked,
+        only_finished_vods: document.getElementById('apOnlyVod').checked,
+        min_duration_sec: 900,
+      };
+      const res = await fetch('/api/monitor/autopilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return alert('Failed to save Auto-Pilot');
+      snapshot = await res.json();
+      renderActiveCreator();
+      showToast(payload.enabled ? 'Auto-Pilot enabled!' : 'Auto-Pilot paused');
+    }
+
+    async function runAutopilotNow() {
+      const btn = document.getElementById('apRunBtn');
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+      try {
+        const res = await fetch('/api/monitor/autopilot/run-now', { method: 'POST' });
+        if (!res.ok) throw new Error('Auto-Pilot check failed');
+        snapshot = await res.json();
+        renderActiveCreator();
+        showToast('Auto-Pilot check complete!');
+      } catch (e) {
+        alert(e.message || 'Check failed');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Check Now';
+      }
+    }
+
+    loadSnapshot();
+  </script>
+</body>
+</html>

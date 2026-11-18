@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -213,6 +214,39 @@ def _compute_smooth_crop_x(
     return x1, x2
 
 
+def _resolve_ffprobe_bin() -> str:
+    sibling = Path(FFMPEG_BIN).with_name("ffprobe")
+    if sibling.exists():
+        return str(sibling)
+    return shutil.which("ffprobe") or "ffprobe"
+
+
+def _probe_source_fps(video_path: Path) -> float:
+    try:
+        out = subprocess.check_output(
+            [
+                _resolve_ffprobe_bin(),
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=r_frame_rate",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(video_path),
+            ],
+            text=True,
+            timeout=5,
+        ).strip()
+        if "/" in out:
+            num, den = out.split("/", 1)
+            return float(num) / max(1.0, float(den))
+        return float(out or 30.0)
+    except Exception:
+        return 30.0
+
+
 def render_short_clip(
     source_video: Path,
     output_path: Path,
@@ -249,12 +283,14 @@ def render_short_clip(
         )
 
     ass_filter = f",ass='{_escape_ffmpeg_filter_path(ass_path)}'" if use_ass else ""
+    src_fps = _probe_source_fps(source_video)
+    out_fps = 60 if src_fps >= 48.0 else 30
 
     if layout == "blurred_bg_fit":
         fc = (
-            f"[0:v]fps=30,scale=270:480:force_original_aspect_ratio=increase,"
+            f"[0:v]fps={out_fps},scale=270:480:force_original_aspect_ratio=increase,"
             f"crop=270:480,gblur=sigma=8,scale=1080:1920,eq=brightness=-0.08[bg];"
-            f"[0:v]fps=30,scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1[fg];"
+            f"[0:v]fps={out_fps},scale=1080:1920:force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1[fg];"
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2{ass_filter}[vout]"
         )
     elif layout == "split_screen_focus":
@@ -262,8 +298,8 @@ def render_short_clip(
         x1, _ = _compute_smooth_crop_x(visual, start, end, src_w, src_h)
         crop_w = min(src_w, int(round(src_h * 9.0 / 16.0)))
         fc = (
-            f"[0:v]fps=30,scale=1080:1120:force_original_aspect_ratio=increase,crop=1080:1120[top];"
-            f"[0:v]fps=30,crop={crop_w}:{src_h}:{x1}:0,scale=1080:800:force_original_aspect_ratio=increase,crop=1080:800[bot];"
+            f"[0:v]fps={out_fps},scale=1080:1120:force_original_aspect_ratio=increase,crop=1080:1120[top];"
+            f"[0:v]fps={out_fps},crop={crop_w}:{src_h}:{x1}:0,scale=1080:800:force_original_aspect_ratio=increase,crop=1080:800[bot];"
             f"[top][bot]vstack=inputs=2{ass_filter}[vout]"
         )
     elif layout == "face_track_9_16":
@@ -274,12 +310,12 @@ def render_short_clip(
         else:
             x_expr = str(x1)
         fc = (
-            f"[0:v]fps=30,crop={crop_w}:{src_h}:{x_expr}:0,scale=1080:1920,setsar=1{ass_filter}[vout]"
+            f"[0:v]fps={out_fps},crop={crop_w}:{src_h}:{x_expr}:0,scale=1080:1920,setsar=1{ass_filter}[vout]"
         )
     else:  # center_9_16
         crop_w = min(src_w, int(round(src_h * 9.0 / 16.0)))
         x_mid = max(0, (src_w - crop_w) // 2)
-        fc = f"[0:v]fps=30,crop={crop_w}:{src_h}:{x_mid}:0,scale=1080:1920,setsar=1{ass_filter}[vout]"
+        fc = f"[0:v]fps={out_fps},crop={crop_w}:{src_h}:{x_mid}:0,scale=1080:1920,setsar=1{ass_filter}[vout]"
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -297,15 +333,15 @@ def render_short_clip(
         "[vout]",
     ]
     if has_audio:
-        cmd.extend(["-map", "0:a?", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "160k"])
+        cmd.extend(["-map", "0:a?", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "192k"])
     cmd.extend(
         [
             "-c:v",
             "libx264",
             "-preset",
-            "veryfast",
+            "medium",
             "-crf",
-            "21",
+            "17",
             "-pix_fmt",
             "yuv420p",
             "-movflags",

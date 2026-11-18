@@ -202,9 +202,9 @@ def _get_valid_access_token(client: httpx.Client) -> str:
     return access_token
 
 
-def _extract_clean_tags(description: str) -> list[str]:
+def _extract_clean_tags(description: str, is_short: bool = True) -> list[str]:
     found = [t.lstrip("#").strip() for t in re.findall(r"#([A-Za-z0-9_]{2,30})", description)]
-    if "shorts" not in [t.lower() for t in found]:
+    if is_short and "shorts" not in [t.lower() for t in found]:
         found.append("shorts")
     return found[:15]
 
@@ -216,9 +216,10 @@ def upload_short_to_youtube(
     privacy_status: str = "private",
     publish_at_iso: str = "",
     category_id: str = "20",
+    is_short: bool = True,
 ) -> dict[str, Any]:
     """
-    Upload a vertical MP4 clip to the connected YouTube channel using
+    Upload an MP4 video/Short to the connected YouTube channel using
     Google YouTube Data API v3 chunked resumable upload (8 MiB chunks).
     """
     if not video_path.exists():
@@ -229,12 +230,12 @@ def upload_short_to_youtube(
         priv = "private"
 
     clean_title = (title or "Stream Highlight").strip()
-    if "#shorts" not in clean_title.lower() and len(clean_title) <= 91:
+    if is_short and "#shorts" not in clean_title.lower() and len(clean_title) <= 91:
         clean_title = f"{clean_title} #shorts"
     clean_title = clean_title[:100]
 
     clean_desc = (description or "").strip()
-    if "#shorts" not in clean_desc.lower():
+    if is_short and "#shorts" not in clean_desc.lower():
         clean_desc = (clean_desc + "\n#shorts").strip()
 
     status_block: dict[str, Any] = {
@@ -248,7 +249,7 @@ def upload_short_to_youtube(
         "snippet": {
             "title": clean_title,
             "description": clean_desc[:4900],
-            "tags": _extract_clean_tags(clean_desc),
+            "tags": _extract_clean_tags(clean_desc, is_short=is_short),
             "categoryId": category_id,
         },
         "status": status_block,
@@ -314,7 +315,7 @@ def upload_short_to_youtube(
         raise RuntimeError(f"YouTube upload returned no video id: {data}")
     return {
         "video_id": vid,
-        "url": f"https://youtube.com/shorts/{vid}",
+        "url": f"https://youtube.com/shorts/{vid}" if is_short else f"https://www.youtube.com/watch?v={vid}",
         "privacy_status": status_block["privacyStatus"],
         "publish_at": status_block.get("publishAt", ""),
         "uploaded_at": datetime.now(timezone.utc).isoformat(),

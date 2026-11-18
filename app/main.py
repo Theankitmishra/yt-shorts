@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import shutil
+import threading
+import time
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -30,8 +32,20 @@ from app.uploader import (
     save_youtube_client_credentials,
     upload_short_to_youtube,
 )
+from app.compiler import build_weekly_compilation
+from app.monitor import (
+    count_jobs_started_today,
+    get_autopilot_config,
+    get_monitor_snapshot,
+    load_monitor_state,
+    scan_creator,
+    toggle_manual_clipped,
+    update_autopilot_config,
+    upsert_creator,
+)
 from app.config import (
     BASE_DIR,
+    DATA_DIR,
     FFMPEG_BIN,
     JOBS_DIR,
     STATIC_DIR,
@@ -53,6 +67,7 @@ from app.rsi_engine import (
     run_rsi_pipeline,
 )
 from app.transcriber import (
+    capture_live_segment,
     download_youtube_audio,
     download_youtube_section,
     download_youtube_video,
@@ -134,14 +149,20 @@ def _process_job(job_id: str) -> None:
         sub_script = job.get("subtitle_script", "roman")
         video_title = str(job.get("source_label") or "")
 
-        if source_mode == "youtube" and youtube_mode == "audio_first":
+        yt_info: dict[str, Any] = {}
+        is_live_stream = False
+        if source_mode == "youtube":
+            log("Checking stream / video metadata...")
+            yt_info = fetch_youtube_info(job["source_value"])
+            is_live_stream = bool(yt_info.get("is_live"))
+            if yt_info.get("title"):
+                job["source_label"] = yt_info["title"]
+                _save_job(job)
+
+        if source_mode == "youtube" and youtube_mode == "audio_first" and not is_live_stream:
             # --- ULTRA-LIGHT AUDIO-FIRST + PARTIAL 1080p SLICE PIPELINE ---
             url = job["source_value"]
-            log("Fetching YouTube metadata (smart audio-first mode)...")
-            yt_info = fetch_youtube_info(url)
             duration = float(yt_info.get("duration") or 0.0)
-            job["source_label"] = yt_info.get("title") or url
-            _save_job(job)
 
             audio_path = download_youtube_audio(url, work_dir, log_cb=log)
             if duration <= 0:
@@ -304,10 +325,15 @@ def _process_job(job_id: str) -> None:
                 rendered_clips.append(clip)
 
         else:
-            # --- FULL VIDEO PIPELINE (Local File, Upload, or Full-Video YouTube) ---
+            # --- FULL VIDEO / LIVE BUFFER PIPELINE (Local File, Upload, Full VOD, or Active Live) ---
             fallback_json3: Path | None = None
             if source_mode == "youtube":
-                video_path, fallback_json3 = download_youtube_video(job["source_value"], work_dir, log_cb=log)
+                if is_live_stream:
+                    video_path = capture_live_segment(
+                        job["source_value"], work_dir, duration_sec=600, log_cb=log
+                    )
+                else:
+                    video_path, fallback_json3 = download_youtube_video(job["source_value"], work_dir, log_cb=log)
             else:
                 video_path = Path(job["source_value"])
                 if not video_path.exists():
@@ -461,6 +487,24 @@ def _process_job(job_id: str) -> None:
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
     return HTMLResponse((STATIC_DIR / "index.html").read_text(encoding="utf-8"))
+
+
+@app.get("/monitor", response_class=HTMLResponse)
+def monitor_page() -> HTMLResponse:
+    return HTMLResponse((STATIC_DIR / "monitor.html").read_text(encoding="utf-8"))
+
+
+@app.get("/outputs/compilations/{comp_id}/{filename}")
+def serve_compilation_output(comp_id: str, filename: str) -> FileResponse:
+    safe_name = Path(filename).name
+    candidates = [
+        get_output_dir() / "compilations" / comp_id / safe_name,
+        BASE_DIR / "outputs" / "compilations" / comp_id / safe_name,
+    ]
+    for fp in candidates:
+        if fp.exists() and fp.is_file():
+            return FileResponse(fp, media_type="video/mp4")
+    raise HTTPException(status_code=404, detail="Compilation video not found")
 
 
 @app.get("/outputs/{job_id}/{filename}")
@@ -1112,6 +1156,381 @@ def api_upload_clip_youtube(job_id: str, clip_id: str, body: YoutubeUploadBody) 
         _save_job(job)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"upload": res, "clip": clip}
+
+
+COMPILATIONS_DIR = DATA_DIR / "compilations"
+COMPILATIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _load_comp(comp_id: str) -> dict[str, Any]:
+    fp = COMPILATIONS_DIR / f"{comp_id}.json"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail="Compilation not found")
+    return json.loads(fp.read_text(encoding="utf-8"))
+
+
+def _save_comp(comp: dict[str, Any]) -> None:
+    COMPILATIONS_DIR.mkdir(parents=True, exist_ok=True)
+    (COMPILATIONS_DIR / f"{comp['compilation_id']}.json").write_text(
+        json.dumps(comp, indent=2), encoding="utf-8"
+    )
+
+
+def _compilation_worker(comp_id: str) -> None:
+    comp = _load_comp(comp_id)
+    work_dir = get_work_dir() / f"comp_{comp_id}"
+    out_dir = get_output_dir() / "compilations" / comp_id
+
+    def log(msg: str) -> None:
+        ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        comp.setdefault("logs", []).append(f"[{ts}] {msg}")
+        _save_comp(comp)
+
+    try:
+        comp["status"] = "running"
+        _save_comp(comp)
+        jobs = [_load_job(jid) for jid in comp.get("job_ids", []) if _job_file(jid).exists()]
+        intro_audio_str = str(comp.get("intro_audio_path") or "").strip()
+        intro_audio_p = Path(intro_audio_str) if intro_audio_str else None
+        res = build_weekly_compilation(
+            comp_id=comp_id,
+            title=comp["title"],
+            jobs=jobs,
+            out_dir=out_dir,
+            work_dir=work_dir,
+            max_clips=int(comp.get("max_clips", 8)),
+            watermark_text=str(comp.get("watermark_text") or ""),
+            creator_tag=str(comp.get("creator_tag") or ""),
+            required_hashtags=str(comp.get("required_hashtags") or ""),
+            vfx_enabled=bool(comp.get("vfx_enabled", True)),
+            transition_style=str(comp.get("transition_style") or "slide_wipe"),
+            intro_audio_path=intro_audio_p,
+            log_cb=log,
+        )
+        comp.update(res)
+        if load_settings().get("auto_cleanup_work", True):
+            freed_mb = _cleanup_job_temp_media(work_dir, upload_path=intro_audio_p)
+            if freed_mb > 0:
+                log(f"Auto-cleaned {freed_mb} MB of compilation temp media.")
+        comp["status"] = "completed"
+        log("1080p compilation video ready!")
+        _save_comp(comp)
+    except Exception as exc:
+        comp["status"] = "failed"
+        comp["error"] = f"{exc}\n{traceback.format_exc()}"
+        log(f"ERROR: {exc}")
+        _save_comp(comp)
+
+
+@app.get("/api/compilations")
+def api_list_compilations() -> list[dict[str, Any]]:
+    items = []
+    for fp in sorted(COMPILATIONS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:20]:
+        try:
+            items.append(json.loads(fp.read_text(encoding="utf-8")))
+        except Exception:
+            continue
+    return items
+
+
+@app.get("/api/compilations/{comp_id}")
+def api_get_compilation(comp_id: str) -> dict[str, Any]:
+    return _load_comp(comp_id)
+
+
+@app.post("/api/compilations")
+async def api_create_compilation(
+    title: str = Form(default="Best Stream Moments This Week"),
+    job_ids: str = Form(default=""),
+    max_clips: int = Form(default=8),
+    watermark_text: str = Form(default="Credit: @RakaZoneGaming"),
+    creator_tag: str = Form(default="@RakaZoneGaming"),
+    required_hashtags: str = Form(default="#RakaZoneGaming #GTA6 #GTA #Gaming"),
+    vfx_enabled: bool = Form(default=True),
+    transition_style: str = Form(default="slide_wipe"),
+    intro_audio: UploadFile | None = File(default=None),
+) -> dict[str, Any]:
+    selected_ids = [j.strip() for j in job_ids.split(",") if j.strip()]
+    if not selected_ids:
+        # Auto-pick up to 7 latest completed jobs if none specified
+        for fp in sorted(JOBS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:7]:
+            try:
+                j = json.loads(fp.read_text(encoding="utf-8"))
+                if j.get("status") == "completed" and j.get("clips"):
+                    selected_ids.append(j["job_id"])
+            except Exception:
+                continue
+    if not selected_ids:
+        raise HTTPException(status_code=400, detail="Generate at least 1 completed stream job first.")
+
+    comp_id = uuid.uuid4().hex[:8]
+    intro_path = ""
+    if intro_audio and intro_audio.filename:
+        dest = get_upload_dir() / f"comp_intro_{comp_id}_{Path(intro_audio.filename).name}"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with dest.open("wb") as f:
+            while chunk := await intro_audio.read(1024 * 1024):
+                f.write(chunk)
+        intro_path = str(dest)
+
+    comp = {
+        "compilation_id": comp_id,
+        "status": "queued",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "title": title.strip()[:95] or "Weekly Stream Compilation",
+        "job_ids": selected_ids,
+        "max_clips": max(2, min(15, int(max_clips))),
+        "watermark_text": watermark_text.strip()[:48],
+        "creator_tag": creator_tag.strip()[:48],
+        "required_hashtags": required_hashtags.strip()[:160],
+        "vfx_enabled": bool(vfx_enabled),
+        "transition_style": transition_style,
+        "intro_audio_path": intro_path,
+        "logs": [],
+    }
+    _save_comp(comp)
+    executor.submit(_compilation_worker, comp_id)
+    return comp
+
+
+@app.post("/api/compilations/{comp_id}/upload-youtube")
+def api_upload_compilation_youtube(comp_id: str, body: YoutubeUploadBody) -> dict[str, Any]:
+    comp = _load_comp(comp_id)
+    out_p = Path(comp.get("output_path") or (get_output_dir() / "compilations" / comp_id / "compilation_1080p.mp4"))
+    if not out_p.exists():
+        raise HTTPException(status_code=404, detail="Compiled MP4 not found.")
+    try:
+        res = upload_short_to_youtube(
+            video_path=out_p,
+            title=body.title.strip() or comp["title"],
+            description=body.description.strip() or comp.get("youtube_description") or comp["title"],
+            privacy_status=body.privacy_status,
+            publish_at_iso=body.publish_at_iso,
+            is_short=False,
+        )
+        comp["youtube_upload"] = res
+        comp.pop("youtube_upload_error", None)
+        _save_comp(comp)
+    except Exception as exc:
+        comp["youtube_upload_error"] = str(exc)
+        _save_comp(comp)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"upload": res, "compilation": comp}
+
+
+class MonitorCreatorBody(BaseModel):
+    creator_id: str = ""
+    name: str
+    youtube_url: str = ""
+    kick_url: str = ""
+    creator_tag: str = ""
+    watermark_text: str = ""
+    required_hashtags: str = ""
+    default_clips: int = 6
+    target_max_duration: int = 45
+    campaign_id: str = ""
+
+
+class MonitorToggleBody(BaseModel):
+    url: str
+    clipped: bool = True
+
+
+class MonitorClipNowBody(BaseModel):
+    url: str
+    title: str = ""
+    auto_upload_youtube: bool = False
+    youtube_privacy: str = "private"
+
+
+@app.get("/api/monitor")
+def api_get_monitor() -> dict[str, Any]:
+    return get_monitor_snapshot()
+
+
+@app.post("/api/monitor/creators")
+def api_upsert_monitor_creator(body: MonitorCreatorBody) -> dict[str, Any]:
+    return upsert_creator(body.model_dump())
+
+
+@app.post("/api/monitor/{creator_id}/scan")
+def api_scan_monitor_creator(creator_id: str) -> dict[str, Any]:
+    try:
+        return scan_creator(creator_id)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/monitor/{creator_id}/toggle-clipped")
+def api_toggle_monitor_clipped(creator_id: str, body: MonitorToggleBody) -> dict[str, Any]:
+    try:
+        return toggle_manual_clipped(creator_id, body.url, body.clipped)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _submit_monitor_clip_job(
+    creator: dict[str, Any],
+    url: str,
+    title: str = "",
+    auto_upload_youtube: bool = False,
+    youtube_privacy: str = "private",
+) -> dict[str, Any]:
+    job_id = uuid.uuid4().hex[:10]
+    job: dict[str, Any] = {
+        "job_id": job_id,
+        "status": "queued",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "source_mode": "youtube",
+        "youtube_mode": "audio_first",
+        "source_value": url.strip(),
+        "source_label": title.strip() or url.strip(),
+        "is_uploaded_copy": False,
+        "num_clips": max(1, min(10, int(creator.get("default_clips") or 6))),
+        "rsi_iterations": 3,
+        "layout_preference": "auto",
+        "llm_provider": "auto_free",
+        "whisper_model": "base",
+        "burn_captions": True,
+        "subtitle_language": "auto",
+        "subtitle_script": "roman",
+        "watermark_text": str(creator.get("watermark_text") or "").strip()[:48],
+        "creator_tag": str(creator.get("creator_tag") or "").strip()[:48],
+        "required_hashtags": str(creator.get("required_hashtags") or "").strip()[:140],
+        "target_max_duration": max(15, min(60, int(creator.get("target_max_duration") or 45))),
+        "campaign_id": str(creator.get("campaign_id") or "").strip(),
+        "auto_upload_youtube": bool(auto_upload_youtube),
+        "youtube_privacy": youtube_privacy.strip().lower() or "private",
+        "logs": [],
+        "clips": [],
+        "rsi_traces": [],
+    }
+    _save_job(job)
+    executor.submit(_process_job, job_id)
+    return job
+
+
+@app.post("/api/monitor/{creator_id}/clip-now")
+def api_clip_monitor_item(creator_id: str, body: MonitorClipNowBody) -> dict[str, Any]:
+    state = load_monitor_state()
+    creator = next((c for c in state.get("creators") or [] if c["creator_id"] == creator_id), None)
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing stream URL")
+
+    job = _submit_monitor_clip_job(
+        creator,
+        url=url,
+        title=body.title,
+        auto_upload_youtube=body.auto_upload_youtube,
+        youtube_privacy=body.youtube_privacy,
+    )
+    return {"job": job, **get_monitor_snapshot()}
+
+
+class AutopilotBody(BaseModel):
+    enabled: bool = False
+    interval_minutes: int = 60
+    auto_upload_youtube: bool = False
+    youtube_privacy: str = "private"
+    max_jobs_per_day: int = 2
+    only_finished_vods: bool = True
+    min_duration_sec: int = 900
+
+
+_autopilot_lock = threading.Lock()
+
+
+def run_autopilot_sweep() -> dict[str, Any]:
+    """Scan creators and auto-clip newest eligible unclipped VOD within daily quota."""
+    if not _autopilot_lock.acquire(blocking=False):
+        return get_monitor_snapshot()
+    try:
+        ap = get_autopilot_config()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        started_today = count_jobs_started_today()
+        max_today = int(ap.get("max_jobs_per_day") or 2)
+        if started_today >= max_today:
+            update_autopilot_config({
+                "last_run_at": now_iso,
+                "last_action": f"Daily cap reached ({started_today}/{max_today} jobs today)",
+            })
+            return get_monitor_snapshot()
+
+        only_vods = bool(ap.get("only_finished_vods", True))
+        min_dur = int(ap.get("min_duration_sec") or 900)
+        state = load_monitor_state()
+        triggered_msg = "Checked feeds — no new unclipped streams"
+
+        for c in state.get("creators") or []:
+            snap = scan_creator(c["creator_id"])
+            updated_c = next((x for x in snap.get("creators") or [] if x["creator_id"] == c["creator_id"]), None)
+            if not updated_c:
+                continue
+            for it in updated_c.get("items") or []:
+                if it.get("clip_status") != "pending":
+                    continue
+                if only_vods and it.get("is_live"):
+                    continue
+                if not it.get("is_live") and int(it.get("duration_sec") or 0) < min_dur:
+                    continue
+                job = _submit_monitor_clip_job(
+                    updated_c,
+                    url=it["url"],
+                    title=it["title"],
+                    auto_upload_youtube=bool(ap.get("auto_upload_youtube")),
+                    youtube_privacy=str(ap.get("youtube_privacy") or "private"),
+                )
+                triggered_msg = f"Auto-started job {job['job_id']} for {it['title'][:45]}"
+                break
+            if "Auto-started job" in triggered_msg:
+                break
+
+        update_autopilot_config({"last_run_at": now_iso, "last_action": triggered_msg})
+        return get_monitor_snapshot()
+    finally:
+        _autopilot_lock.release()
+
+
+def _autopilot_loop() -> None:
+    while True:
+        time.sleep(30)
+        try:
+            ap = get_autopilot_config()
+            if not ap.get("enabled"):
+                continue
+            interval_s = max(600, int(ap.get("interval_minutes") or 60) * 60)
+            last_str = str(ap.get("last_run_at") or "")
+            due = True
+            if last_str:
+                try:
+                    elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(last_str)).total_seconds()
+                    due = elapsed >= interval_s
+                except Exception:
+                    due = True
+            if due:
+                run_autopilot_sweep()
+        except Exception:
+            pass
+
+
+@app.on_event("startup")
+def _start_autopilot_thread() -> None:
+    t = threading.Thread(target=_autopilot_loop, daemon=True, name="autopilot-monitor")
+    t.start()
+
+
+@app.post("/api/monitor/autopilot")
+def api_update_autopilot(body: AutopilotBody) -> dict[str, Any]:
+    update_autopilot_config(body.model_dump())
+    return get_monitor_snapshot()
+
+
+@app.post("/api/monitor/autopilot/run-now")
+def api_run_autopilot_now() -> dict[str, Any]:
+    return run_autopilot_sweep()
 
 
 

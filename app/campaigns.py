@@ -173,7 +173,7 @@ def generate_bounty_post_pack(
     if snippet:
         caption_lines.append(f'"{snippet}"')
     if clean_tag:
-        caption_lines.append(f"Creator: {clean_tag}")
+        caption_lines.append(f"Credit: {clean_tag}")
     caption_lines.append(tags)
     caption = "\n".join(caption_lines)
 

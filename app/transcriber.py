@@ -97,7 +97,51 @@ def fetch_youtube_info(url: str) -> dict[str, Any]:
     return {
         "title": data.get("title", "YouTube Video"),
         "duration": float(data.get("duration") or 0.0),
+        "is_live": bool(data.get("is_live")),
     }
+
+
+def capture_live_segment(
+    url: str,
+    dest_dir: Path,
+    duration_sec: int = 600,
+    log_cb: Callable[[str], None] | None = None,
+) -> Path:
+    """
+    Capture a rolling segment from an ongoing YouTube/Kick livestream into an MP4
+    using yt-dlp -g stream extraction + FFmpeg -t limit so clipping works while live.
+    """
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    out_mp4 = dest_dir / "live_capture.mp4"
+    dur = max(120, min(1800, int(duration_sec)))
+    if log_cb:
+        log_cb(f"Live stream detected! Capturing {dur // 60}m live buffer via FFmpeg...")
+
+    raw_urls = run_cmd(
+        _yt_dlp_base_cmd()
+        + [
+            "--no-warnings",
+            "-f",
+            "best[height<=1080][ext=mp4]/best[height<=1080]/best",
+            "-g",
+            url,
+        ]
+    )
+    stream_urls = [u.strip() for u in raw_urls.splitlines() if u.strip()]
+    if not stream_urls:
+        raise RuntimeError("Could not extract playable livestream URL.")
+
+    cmd = [FFMPEG_BIN, "-y"]
+    if len(stream_urls) >= 2:
+        cmd.extend(["-t", str(dur), "-i", stream_urls[0], "-t", str(dur), "-i", stream_urls[1]])
+        cmd.extend(["-map", "0:v:0", "-map", "1:a:0"])
+    else:
+        cmd.extend(["-t", str(dur), "-i", stream_urls[0]])
+    cmd.extend(["-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart", str(out_mp4)])
+    run_cmd(cmd)
+    if not out_mp4.exists() or out_mp4.stat().st_size == 0:
+        raise RuntimeError("Live stream capture produced empty file.")
+    return out_mp4
 
 
 def _run_yt_dlp_streamed(

@@ -9,4 +9,8 @@ outputs/
 data/jobs/
 data/settings.json
 data/youtube_cookies.txt
+data/youtube_oauth.json
+data/monitor_state.json
+cookies_*.txt
+shorts-studio-github/
 .git/

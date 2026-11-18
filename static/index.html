@@ -377,7 +377,8 @@
       <span id="storageBadge" class="badge clickable" onclick="openTab('storage')">Storage: checking...</span>
       <span id="ytHeaderBadge" class="badge warn clickable" onclick="openTab('storage')">YouTube: Not connected</span>
     </div>
-    <div class="header-actions" style="display:flex; gap:8px; align-items:center;">
+    <div class="header-actions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <a class="btn btn-ghost" href="/monitor">📡 Creator Tracker</a>
       <select id="recentJobs" style="width:280px;" onchange="loadSelectedJob(this.value)">
         <option value="">Switch past project...</option>
       </select>
@@ -541,6 +542,7 @@
     <main id="mainSection" class="card">
       <div class="tabs">
         <button id="tab-btn-clips" class="tab-btn active" onclick="setMainTab('clips', this)">🎬 My Shorts</button>
+        <button id="tab-btn-compilations" class="tab-btn" onclick="setMainTab('compilations', this)">🎞️ Compilations</button>
         <button id="tab-btn-campaigns" class="tab-btn" onclick="setMainTab('campaigns', this)">💰 Bounties &amp; CPM</button>
         <button id="tab-btn-storage" class="tab-btn" onclick="setMainTab('storage', this)">⚙️ Setup &amp; Storage</button>
         <button id="tab-btn-trace" class="tab-btn" onclick="setMainTab('trace', this)">🧠 How AI Picked</button>
@@ -722,6 +724,65 @@
         </div>
         <div id="memoryView"></div>
       </div>
+
+      <!-- TAB 6: WEEKLY 16:9 COMPILATIONS -->
+      <div id="panel-compilations" class="hidden">
+        <div class="flex-between" style="margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div>
+            <h3 style="margin-bottom:2px;">Weekly 16:9 Best Moments Compilation Builder</h3>
+            <div class="small">Builds a high-retention 1080p video: <strong>Cold Open Teaser → Title Card → Countdown Chapters (#N to #1) → Zoom VFX + SFX → YouTube Chapters</strong>.</div>
+          </div>
+        </div>
+
+        <div class="subcard">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:10px;">
+            <div>
+              <label>Compilation Video Title</label>
+              <input type="text" id="compTitle" value="Top RakaZone GTA 6 Moments This Week" />
+            </div>
+            <div>
+              <label>Top Moments to Include (4–15)</label>
+              <input type="number" id="compMaxClips" value="8" min="2" max="15" />
+            </div>
+            <div>
+              <label>Transition Style</label>
+              <select id="compTransition">
+                <option value="slide_wipe" selected>Crisp Wipe + Whoosh SFX</option>
+                <option value="flash_cut">Flash Cut + Bass Pop</option>
+              </select>
+            </div>
+            <div>
+              <label>Credit Watermark (top-right)</label>
+              <input type="text" id="compWatermark" value="Credit: @RakaZoneGaming" />
+            </div>
+            <div>
+              <label>Creator @Tag (for Description)</label>
+              <input type="text" id="compCreatorTag" value="@RakaZoneGaming" />
+            </div>
+            <div>
+              <label>Hashtags</label>
+              <input type="text" id="compHashtags" value="#RakaZoneGaming #GTA6 #GTA #Gaming" />
+            </div>
+          </div>
+
+          <label style="margin-top:12px;">Select Streams / Past Projects to Combine:</label>
+          <div id="compJobCheckboxes" style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto; padding:8px; background:var(--bg); border:1px solid var(--border); border-radius:8px;"></div>
+
+          <label style="margin-top:12px;">Optional Voice Intro Audio (.mp3 / .wav / .m4a — best for passing YouTube Reused Content!)</label>
+          <input type="file" id="compIntroAudio" accept="audio/*" />
+
+          <label style="display:flex; align-items:center; gap:8px; margin-top:10px; color:var(--text); cursor:pointer;">
+            <input type="checkbox" id="compVfxEnabled" checked style="width:auto;" />
+            Enable Retention VFX (Cold Open, Countdown Cards, Zoom Punch-Ins, Contrast Beats &amp; SFX)
+          </label>
+
+          <button id="compSubmitBtn" class="btn btn-primary" onclick="startCompilation()">
+            ✨ Build 1080p Compilation Video
+          </button>
+        </div>
+
+        <div id="compilationsList" style="display:flex; flex-direction:column; gap:14px;"></div>
+      </div>
     </main>
   </div>
 
@@ -801,12 +862,13 @@
     }
 
     function setMainTab(tab, btn) {
-      document.querySelectorAll('#panel-clips, #panel-campaigns, #panel-trace, #panel-memory, #panel-storage').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('#panel-clips, #panel-compilations, #panel-campaigns, #panel-trace, #panel-memory, #panel-storage').forEach(el => el.classList.add('hidden'));
       document.getElementById('panel-' + tab).classList.remove('hidden');
       if (btn) {
         btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
       }
+      if (tab === 'compilations') refreshCompilations();
       if (tab === 'campaigns') refreshCampaigns();
       if (tab === 'memory') refreshMemory();
       if (tab === 'storage') { refreshStorage(); refreshYoutubeStatus(); }
@@ -1387,6 +1449,12 @@
       document.getElementById('creatorTag').value = c.creator_tag || '';
       document.getElementById('requiredHashtags').value = c.required_hashtags || '';
       document.getElementById('targetMaxDuration').value = c.target_max_duration || 45;
+      if (c.campaign_id === 'rakazone-gta6') {
+        document.getElementById('numClips').value = '6';
+      }
+      if (document.getElementById('compWatermark')) document.getElementById('compWatermark').value = c.watermark_text || '';
+      if (document.getElementById('compCreatorTag')) document.getElementById('compCreatorTag').value = c.creator_tag || '';
+      if (document.getElementById('compHashtags')) document.getElementById('compHashtags').value = c.required_hashtags || '';
       const banner = document.getElementById('activeCampaignBanner');
       banner.style.display = 'block';
       banner.textContent = `Using preset: ${c.name} ($${Number(c.cpm_usd || 0).toFixed(2)} CPM)`;
@@ -1516,11 +1584,145 @@
       refreshCampaigns();
     }
 
+    let compPollTimer = null;
+
+    async function refreshCompilations() {
+      const [jobsRes, compRes] = await Promise.all([fetch('/api/jobs'), fetch('/api/compilations')]);
+      if (jobsRes.ok) {
+        const jobs = await jobsRes.json();
+        const box = document.getElementById('compJobCheckboxes');
+        const completed = jobs.filter(j => j.status === 'completed' && j.num_clips > 0);
+        if (!completed.length) {
+          box.innerHTML = '<div class="small">No completed streams yet — generate at least 1 Short job first.</div>';
+        } else {
+          box.innerHTML = completed.map((j, i) => `
+            <label style="display:flex; align-items:center; gap:8px; margin:0; color:var(--text); cursor:pointer;">
+              <input type="checkbox" class="comp-job-chk" value="${escapeHtml(j.job_id)}" ${i < 5 ? 'checked' : ''} style="width:auto;" />
+              <span class="small" style="color:var(--text);">${escapeHtml((j.source_label || j.job_id).slice(0, 58))} (${j.num_clips} clips)</span>
+            </label>
+          `).join('');
+        }
+      }
+      if (!compRes.ok) return;
+      const items = await compRes.json();
+      const list = document.getElementById('compilationsList');
+      if (!items.length) {
+        list.innerHTML = '<div class="small">No weekly compilations built yet.</div>';
+        return;
+      }
+      let anyRunning = false;
+      list.innerHTML = items.map(c => {
+        if (c.status === 'running' || c.status === 'queued') anyRunning = true;
+        const done = c.status === 'completed' && c.output_url;
+        const ytUp = c.youtube_upload || null;
+        return `
+          <div class="subcard" style="margin-bottom:0;">
+            <div class="flex-between" style="flex-wrap:wrap; gap:8px;">
+              <strong>${escapeHtml(c.title)}</strong>
+              <span class="score-pill">${escapeHtml(c.status.toUpperCase())}${done ? ` · ${Math.round(c.duration_sec || 0)}s · ${c.file_size_mb} MB` : ''}</span>
+            </div>
+            ${done ? `
+              <video controls playsinline preload="metadata" src="${c.output_url}?t=${Date.now()}" style="width:100%; max-height:420px; background:#000; border-radius:10px; margin-top:10px;"></video>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center;">
+                <a class="btn btn-ghost" href="${c.output_url}" download="compilation_${c.compilation_id}.mp4">⬇️ Download 1080p MP4</a>
+                <button class="btn btn-ghost" onclick="copyCompDesc('${c.compilation_id}')">📋 Copy Chapters &amp; Credit</button>
+                ${ytUp ? `
+                  <a class="score-pill" href="${escapeHtml(ytUp.url)}" target="_blank" rel="noopener">✅ On YouTube ↗</a>
+                ` : `
+                  <select id="comp-priv-${c.compilation_id}" style="width:auto; padding:6px;">
+                    <option value="private">Private</option>
+                    <option value="unlisted">Unlisted</option>
+                    <option value="public">Public</option>
+                  </select>
+                  <button class="btn btn-primary" id="comp-up-${c.compilation_id}" style="margin-top:0; width:auto; padding:7px 14px;" onclick="uploadCompilation('${c.compilation_id}')">🚀 Upload to YouTube</button>
+                `}
+              </div>
+              <textarea id="comp-desc-${c.compilation_id}" class="hidden">${escapeHtml(c.youtube_description || '')}</textarea>
+            ` : `
+              <div class="logs" style="margin-top:8px; max-height:110px;">${escapeHtml((c.logs || []).slice(-6).join('\n') || 'Queued...')}</div>
+            `}
+          </div>
+        `;
+      }).join('');
+      if (anyRunning && !compPollTimer) {
+        compPollTimer = setInterval(refreshCompilations, 2500);
+      } else if (!anyRunning && compPollTimer) {
+        clearInterval(compPollTimer);
+        compPollTimer = null;
+      }
+    }
+
+    async function startCompilation() {
+      const checked = Array.from(document.querySelectorAll('.comp-job-chk:checked')).map(el => el.value);
+      if (!checked.length) return alert('Select at least 1 completed stream first.');
+      const fd = new FormData();
+      fd.append('title', document.getElementById('compTitle').value.trim());
+      fd.append('job_ids', checked.join(','));
+      fd.append('max_clips', document.getElementById('compMaxClips').value || '8');
+      fd.append('watermark_text', document.getElementById('compWatermark').value.trim());
+      fd.append('creator_tag', document.getElementById('compCreatorTag').value.trim());
+      fd.append('required_hashtags', document.getElementById('compHashtags').value.trim());
+      fd.append('transition_style', document.getElementById('compTransition').value);
+      fd.append('vfx_enabled', document.getElementById('compVfxEnabled').checked);
+      const introFile = document.getElementById('compIntroAudio').files[0];
+      if (introFile) fd.append('intro_audio', introFile);
+
+      const btn = document.getElementById('compSubmitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Building 1080p Compilation...';
+      const res = await fetch('/api/compilations', { method: 'POST', body: fd });
+      btn.disabled = false;
+      btn.textContent = '✨ Build 1080p Compilation Video';
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return alert(err.detail || 'Failed to start compilation');
+      }
+      showToast('Compilation build started!');
+      refreshCompilations();
+    }
+
+    async function copyCompDesc(compId) {
+      const el = document.getElementById(`comp-desc-${compId}`);
+      if (!el) return;
+      try {
+        await navigator.clipboard.writeText(el.value);
+        showToast('Copied Chapters & Credit Description!');
+      } catch (e) {
+        prompt('Copy description:', el.value);
+      }
+    }
+
+    async function uploadCompilation(compId) {
+      const btn = document.getElementById(`comp-up-${compId}`);
+      const priv = document.getElementById(`comp-priv-${compId}`).value;
+      if (btn) { btn.disabled = true; btn.textContent = 'Uploading...'; }
+      const res = await fetch(`/api/compilations/${compId}/upload-youtube`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privacy_status: priv }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (btn) { btn.disabled = false; btn.textContent = '🚀 Upload to YouTube'; }
+        return alert(err.detail || 'Upload failed');
+      }
+      showToast('16:9 Compilation uploaded to YouTube!');
+      refreshCompilations();
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('job')) {
+      currentJobId = urlParams.get('job');
+      loadSelectedJob(currentJobId);
+    }
+    if (urlParams.get('tab')) {
+      openTab(urlParams.get('tab'));
+    }
     refreshHealth();
     refreshRecentJobs();
     refreshCampaigns();
     refreshYoutubeStatus();
-    if (new URLSearchParams(window.location.search).get('yt_connected') === '1') {
+    if (urlParams.get('yt_connected') === '1') {
       showToast('YouTube channel connected!');
       window.history.replaceState({}, '', '/');
     }
