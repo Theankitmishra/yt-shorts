@@ -20,7 +20,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from app.config import COOKIES_STORE_PATH, DATA_DIR, JOBS_DIR  # noqa: E402
-from app.monitor import load_monitor_state, scan_creator  # noqa: E402
+from app.monitor import is_copyright_risk_title, is_gaming_title, load_monitor_state, scan_creator  # noqa: E402
 
 
 def bootstrap_ci_secrets() -> None:
@@ -65,18 +65,21 @@ def select_vod_candidates(
     min_duration_sec: int = 900,
     max_age_days: int = 7,
 ) -> list[dict[str, Any]]:
-    """Return newest eligible finished VODs (strictly skipping active live streams)."""
+    """Return newest eligible finished VODs (skipping live streams & copyrighted watchparties)."""
     eligible: list[dict[str, Any]] = []
     for it in items:
         if it.get("clip_status") != "pending":
             continue
         if it.get("is_live"):
             continue
+        if it.get("copyright_risk") or is_copyright_risk_title(str(it.get("title") or "")):
+            continue
         if int(it.get("duration_sec") or 0) < min_duration_sec:
             continue
         if not _is_recent_enough(it, max_age_days):
             continue
         eligible.append(it)
+    eligible.sort(key=lambda x: (0 if is_gaming_title(str(x.get("title") or "")) else 1))
     return eligible
 
 

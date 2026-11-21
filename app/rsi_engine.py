@@ -754,6 +754,26 @@ def _evolve_memory(
     return updates
 
 
+COPYRIGHT_SEGMENT_RE = re.compile(
+    r"\b(bigg?\s*boss|salman\s*khan|weekend\s*ka\s*vaar|wkv|star\s*india|star\s*plus|"
+    r"colors\s*tv|jiocinema|hotstar|housemates|eviction|nomination|watch\s*party|watchparty)\b",
+    re.IGNORECASE,
+)
+
+
+def _overlaps_blocked(start: float, end: float, blocked_ranges: list[tuple[float, float]] | None) -> bool:
+    if not blocked_ranges:
+        return False
+    for b_start, b_end in blocked_ranges:
+        if min(end, b_end) - max(start, b_start) > 1.5:
+            return True
+    return False
+
+
+def _is_copyright_risk_segment(text: str) -> bool:
+    return bool(COPYRIGHT_SEGMENT_RE.search(str(text or "")))
+
+
 def _propose_initial_candidates(
     segments: list[dict[str, Any]],
     audio: dict[str, Any],
@@ -763,6 +783,7 @@ def _propose_initial_candidates(
     layout_preference: str,
     memory: dict[str, Any],
     llm_provider: str,
+    blocked_ranges: list[tuple[float, float]] | None = None,
 ) -> list[dict[str, Any]]:
     """Build non-overlapping candidate windows across the video and rank top candidates."""
     if not segments:
@@ -796,11 +817,16 @@ def _propose_initial_candidates(
         dur = e_t - s_t
         if dur < 14.0 or dur > 68.0:
             continue
+        if _overlaps_blocked(s_t, e_t, blocked_ranges):
+            continue
+        seg_txt = _text_in_range(segments, s_t, e_t)
+        if _is_copyright_risk_segment(seg_txt):
+            continue
         vstats = _visual_stats_for_range(visual, s_t, e_t)
         cand = {
             "start": round(s_t, 2),
             "end": round(min(video_duration, e_t), 2),
-            "hook_title": _make_hook_banner(_text_in_range(segments, s_t, e_t)),
+            "hook_title": _make_hook_banner(seg_txt),
             "layout": _recommend_layout(vstats, layout_preference),
         }
         ev = evaluate_clip(cand, segments, audio, visual, memory, llm_provider="local_offline")
@@ -810,12 +836,18 @@ def _propose_initial_candidates(
     # Optional LLM global candidate selection if configured
     if llm_provider != "local_offline" and len(segments) > 3:
         compact_transcript = "\n".join(
-            f"[{s['start']:.1f}-{s['end']:.1f}] {s['text']}" for s in segments[:180]
+            f"[{s['start']:.1f}-{s['end']:.1f}] {s['text']}"
+            for s in segments[:180]
+            if not _overlaps_blocked(float(s["start"]), float(s["end"]), blocked_ranges)
+            and not _is_copyright_risk_segment(str(s.get("text") or ""))
         )
         raw = _call_llm(
             llm_provider,
             f"You are an expert Shorts Producer. Strategy:\n{memory['strategy_prompt']}\n"
             f"Rules: {json.dumps(memory['learned_rules'])}\n"
+            "CRITICAL COPYRIGHT RULE: NEVER select segments where the creator is watching or reacting to "
+            "Bigg Boss, TV episodes, movies, trailers, IPL/sports broadcasts, or copyrighted songs; pick ONLY "
+            "original gameplay, GTA RP/action, or creator commentary moments.\n"
             f"Pick the best {num_clips} non-overlapping clips (20-55s each). "
             "Return JSON: {\"clips\": [{\"start\": float, \"end\": float, \"hook_title\": \"<=7 WORDS\"}]}.",
             f"Transcript:\n{compact_transcript[:12000]}",
@@ -828,7 +860,7 @@ def _propose_initial_candidates(
                 for idx, lc in enumerate(llm_clips[:num_clips]):
                     st = max(0.0, float(lc["start"]))
                     en = min(video_duration, float(lc["end"]))
-                    if en - st >= 12.0:
+                    if en - st >= 12.0 and not _overlaps_blocked(st, en, blocked_ranges) and not _is_copyright_risk_segment(_text_in_range(segments, st, en)):
                         vstats = _visual_stats_for_range(visual, st, en)
                         picked.append(
                             {
@@ -883,6 +915,7 @@ def run_rsi_pipeline(
     llm_provider: str = "auto",
     log_cb: Callable[[str], None] | None = None,
     initial_clips: list[dict[str, Any]] | None = None,
+    blocked_ranges: list[tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """
     Execute the multi-round Recursive Self-Improvement loop:
@@ -907,7 +940,15 @@ def run_rsi_pipeline(
             clips.append(c_copy)
     else:
         clips = _propose_initial_candidates(
-            segments, audio, visual, video_duration, num_clips, layout_preference, memory, resolved_llm
+            segments,
+            audio,
+            visual,
+            video_duration,
+            num_clips,
+            layout_preference,
+            memory,
+            resolved_llm,
+            blocked_ranges=blocked_ranges,
         )
 
     traces: list[dict[str, Any]] = []

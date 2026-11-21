@@ -37,6 +37,8 @@ from app.monitor import (
     count_jobs_started_today,
     get_autopilot_config,
     get_monitor_snapshot,
+    is_copyright_risk_title,
+    is_gaming_title,
     load_monitor_state,
     scan_creator,
     toggle_manual_clipped,
@@ -151,6 +153,7 @@ def _process_job(job_id: str) -> None:
 
         yt_info: dict[str, Any] = {}
         is_live_stream = False
+        blocked_ranges: list[tuple[float, float]] = []
         if source_mode == "youtube":
             log("Checking stream / video metadata...")
             yt_info = fetch_youtube_info(job["source_value"])
@@ -158,6 +161,14 @@ def _process_job(job_id: str) -> None:
             if yt_info.get("title"):
                 job["source_label"] = yt_info["title"]
                 _save_job(job)
+            for ch in yt_info.get("chapters") or []:
+                if is_copyright_risk_title(str(ch.get("title") or "")):
+                    b0 = float(ch.get("start_time") or 0.0)
+                    b1 = float(ch.get("end_time") or 0.0)
+                    if b1 > b0:
+                        blocked_ranges.append((b0, b1))
+            if blocked_ranges:
+                log(f"Copyright guard: excluding {len(blocked_ranges)} TV/watchparty chapter(s).")
 
         if source_mode == "youtube" and youtube_mode == "audio_first" and not is_live_stream:
             # --- ULTRA-LIGHT AUDIO-FIRST + PARTIAL 1080p SLICE PIPELINE ---
@@ -200,6 +211,7 @@ def _process_job(job_id: str) -> None:
                 layout_preference=layout_pref,
                 llm_provider=llm_pref,
                 log_cb=log,
+                blocked_ranges=blocked_ranges,
             )
             seed_clips = stage1["clips"]
 
@@ -385,6 +397,7 @@ def _process_job(job_id: str) -> None:
                 layout_preference=layout_pref,
                 llm_provider=llm_pref,
                 log_cb=log,
+                blocked_ranges=blocked_ranges,
             )
             job["llm_provider_used"] = rsi_res["llm_provider"]
             job["memory_generation"] = rsi_res["memory_generation"]
@@ -1485,8 +1498,13 @@ def run_autopilot_sweep() -> dict[str, Any]:
             updated_c = next((x for x in snap.get("creators") or [] if x["creator_id"] == c["creator_id"]), None)
             if not updated_c:
                 continue
-            for it in updated_c.get("items") or []:
+            for it in sorted(
+                updated_c.get("items") or [],
+                key=lambda x: (0 if is_gaming_title(str(x.get("title") or "")) else 1),
+            ):
                 if it.get("clip_status") != "pending":
+                    continue
+                if it.get("copyright_risk") or is_copyright_risk_title(str(it.get("title") or "")):
                     continue
                 if only_vods and it.get("is_live"):
                     continue

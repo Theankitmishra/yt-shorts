@@ -15,6 +15,29 @@ from app.transcriber import run_cmd
 
 MONITOR_PATH = DATA_DIR / "monitor.json"
 
+COPYRIGHT_WATCHPARTY_RE = re.compile(
+    r"\b(bigg?\s*boss|wkv|weekend\s*ka\s*vaar|watch\s*party|watch\s*along|watchparty|"
+    r"watchalong|hotstar|jiocinema|star\s*plus|colors\s*tv|sony\s*liv|netflix|"
+    r"prime\s*video|splitsvilla|roadies|shark\s*tank|kbc|full\s*movie|"
+    r"match\s*highlights|ipl\s*live|cricket\s*match|series\s*watch|episode\s*\d+)\b",
+    re.IGNORECASE,
+)
+GAMING_TITLE_RE = re.compile(
+    r"\b(gta\s*6|gta\s*5|gta|yatra\s*rp|yatrarp|gaming|gameplay|walkthrough|"
+    r"heist|mission|vice\s*city|rp|valorant|bgmi|pubg|minecraft)\b",
+    re.IGNORECASE,
+)
+
+
+def is_copyright_risk_title(title: str) -> bool:
+    """Return True if a stream/chapter title looks like a copyrighted TV/movie/watchparty broadcast."""
+    return bool(COPYRIGHT_WATCHPARTY_RE.search(str(title or "")))
+
+
+def is_gaming_title(title: str) -> bool:
+    """Return True if a stream title clearly indicates gameplay content."""
+    return bool(GAMING_TITLE_RE.search(str(title or "")))
+
 
 def _default_autopilot() -> dict[str, Any]:
     return {
@@ -119,6 +142,7 @@ def _attach_clip_status(creator: dict[str, Any], items: list[dict[str, Any]]) ->
     out: list[dict[str, Any]] = []
     for raw in items:
         item = dict(raw)
+        item["copyright_risk"] = is_copyright_risk_title(str(item.get("title") or ""))
         clean_url = _normalize_kick_url(str(item.get("url") or ""))
         yid = str(item.get("video_id") or "")
         match = job_idx.get(clean_url) or (job_idx.get(f"yt:{yid}") if item.get("platform") == "YouTube" and yid else None)

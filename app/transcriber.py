@@ -83,7 +83,7 @@ def _yt_dlp_base_cmd() -> list[str]:
 
 
 def fetch_youtube_info(url: str) -> dict[str, Any]:
-    """Fetch YouTube title & duration without downloading media."""
+    """Fetch YouTube title, duration & optional chapter ranges without downloading media."""
     out = run_cmd(
         _yt_dlp_base_cmd()
         + [
@@ -94,10 +94,20 @@ def fetch_youtube_info(url: str) -> dict[str, Any]:
         ]
     )
     data = json.loads(out)
+    chapters = [
+        {
+            "start_time": float(ch.get("start_time") or 0.0),
+            "end_time": float(ch.get("end_time") or 0.0),
+            "title": str(ch.get("title") or "").strip(),
+        }
+        for ch in (data.get("chapters") or [])
+        if isinstance(ch, dict)
+    ]
     return {
         "title": data.get("title", "YouTube Video"),
         "duration": float(data.get("duration") or 0.0),
         "is_live": bool(data.get("is_live")),
+        "chapters": chapters,
     }
 
 
